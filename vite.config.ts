@@ -14,6 +14,11 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    // inotify does not propagate on WSL drvfs mounts (/mnt/*) — poll instead
+    watch: {
+      usePolling: true,
+      interval: 300,
+    },
   },
   test: {
     environment: 'jsdom',

@@ -12,6 +12,7 @@
   --van-dialog-background: var(--color-surface);
   --van-dialog-radius: 22px;
   --van-toast-background: color-mix(in srgb, var(--color-surface-strong) 94%, transparent);
+  --van-toast-text-color: var(--color-text);
 }
 .van-dialog { border: 1px solid var(--color-border-strong); box-shadow: var(--shadow-float); overflow: hidden; }
 .van-dialog__header { padding-top: 24px; font-weight: 780; }

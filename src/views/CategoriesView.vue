@@ -89,7 +89,7 @@ async function move(id: string, direction: -1 | 1) {
           <div v-if="vault.categories.length === 0" class="empty-state"><span class="empty-state__icon"><AppIcon name="folder" :size="28" /></span><strong>还没有分类</strong><p>在左侧创建第一个分类，让保险箱更容易浏览。</p></div>
           <div v-for="(category, index) in vault.categories" :key="category.id" class="category-row">
             <span class="category-index mono">{{ String(index + 1).padStart(2, '0') }}</span>
-            <span class="category-dot" :style="{ background: category.color || 'var(--color-primary)' }" />
+            <span class="category-dot" :style="{ background: category.color || 'var(--color-primary)', color: category.color || 'var(--color-primary)' }" />
             <span class="grow category-name">{{ category.name }}</span>
             <div class="category-actions">
               <button class="btn-icon" type="button" :disabled="index === 0" aria-label="上移" @click="move(category.id, -1)"><AppIcon name="up" :size="17" /></button>

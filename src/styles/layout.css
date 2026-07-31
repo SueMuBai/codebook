@@ -62,7 +62,7 @@
 .section-heading__copy p { color: var(--color-text-muted); font-size: 12px; line-height: 1.55; }
 
 .btn-primary, .btn-ghost, .btn-danger, .btn-icon, .icon-button {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: var(--control-height); border-radius: var(--radius-sm); padding: 0 16px; font-weight: 720; cursor: pointer; transition: transform var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: var(--control-height); border-radius: var(--radius-sm); padding: 0 16px; line-height: 1; font-weight: 720; cursor: pointer; transition: transform var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 .btn-primary { border: 1px solid transparent; background: var(--color-primary); color: var(--color-on-primary); box-shadow: 0 8px 24px color-mix(in srgb, var(--color-primary) 20%, transparent); }
 .btn-primary:hover { transform: translateY(-1px); background: var(--color-primary-hover); }
@@ -73,11 +73,13 @@
 .btn-icon, .icon-button { width: var(--touch-target); min-width: var(--touch-target); min-height: var(--touch-target); padding: 0; border: 1px solid var(--color-border); background: transparent; color: var(--color-text-secondary); }
 .icon-button--plain { border-color: transparent; background: transparent; }
 .page-back { flex: 0 0 auto; }
-button:disabled { opacity: .46; cursor: not-allowed; transform: none !important; }
+button:disabled { opacity: .46; cursor: not-allowed; transform: none !important; box-shadow: none !important; filter: saturate(.6); }
 
 .field-label { display: block; margin-bottom: 7px; color: var(--color-text-secondary); font-size: 12px; font-weight: 680; }
 .input, .select, .textarea { width: 100%; min-height: var(--control-height); border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--color-bg-soft) 82%, transparent); color: var(--color-text); padding: 11px 13px; outline: none; user-select: text; transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast); }
+.select { appearance: none; padding-right: 38px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23789b8f' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; }
 .input::placeholder, .textarea::placeholder { color: var(--color-text-muted); opacity: .72; }
+.input.mono::placeholder, .textarea.mono::placeholder { font-family: var(--font-family); letter-spacing: normal; }
 .textarea { min-height: 112px; resize: vertical; line-height: 1.62; }
 .input:hover, .select:hover, .textarea:hover { border-color: color-mix(in srgb, var(--color-primary) 26%, var(--color-border)); }
 .input:focus, .select:focus, .textarea:focus { border-color: var(--color-primary); background: var(--color-surface-elevated); box-shadow: 0 0 0 3px var(--color-primary-soft); }

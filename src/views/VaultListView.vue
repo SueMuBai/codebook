@@ -126,5 +126,5 @@ function openEntry(id: string) {
 .totp-badge { display: inline-flex; align-items: center; gap: 4px; padding: 5px 8px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--color-success) 10%, transparent); color: var(--color-success); font-size: 12px; font-weight: 720; white-space: nowrap; }
 .chevron { color: var(--color-text-muted); }
 @media (min-width: 980px) { .entry-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }.entry-card { min-height: 92px; } }
-@media (max-width: 560px) { .vault-header { align-items: center; }.vault-header .btn-primary { width: 48px; padding: 0; font-size: 0; }.vault-overview { grid-template-columns: 1fr 1fr 1fr; }.overview-stat { justify-content: center; padding: 11px 6px; }.overview-stat > span { display: none; }.overview-stat div { text-align: center; }.totp-badge { padding: 5px; }.totp-badge .app-icon { display: none; } }
+@media (max-width: 560px) { .vault-header { align-items: center; }.vault-header .btn-primary { width: 48px; padding: 0; gap: 0; font-size: 0; }.vault-overview { grid-template-columns: 1fr 1fr 1fr; }.overview-stat { justify-content: center; padding: 11px 6px; }.overview-stat > span { display: none; }.overview-stat div { text-align: center; }.totp-badge { padding: 5px; }.totp-badge .app-icon { display: none; } }
 </style>
