@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { APP_NAME } from '@/app/version'
 import { MASTER_PIN_ERROR, normalizeMasterPinInput } from '@/features/security'
+import { offerBiometricSetupIfNeeded } from '@/services/secure/biometricOffer'
 import { useSessionStore } from '@/stores/session'
 
 const router = useRouter()
@@ -31,6 +32,9 @@ async function createVault() {
     password.value = ''
     confirmPassword.value = ''
     await router.replace('/vault')
+    const offered = await offerBiometricSetupIfNeeded(session)
+    if (offered === 'enabled') showToast('指纹或人脸解锁已开启')
+    else if (offered === 'failed') showToast('未能启用生物识别，可稍后在设置中开启')
   } catch {
     showToast(session.errorMessage || '创建失败')
   }

@@ -37,6 +37,7 @@ android/.idea
 coverage
 output
 .playwright-cli
+.playwright
 
 # Env
 .env

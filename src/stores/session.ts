@@ -28,6 +28,7 @@ import {
   unlockDekWithBiometrics,
   type BiometricStatus,
 } from '@/services/secure/biometric'
+import { clearBiometricOfferDismissal } from '@/services/secure/biometricOffer'
 import type {
   AppSettings,
   PortableSettings,
@@ -269,6 +270,7 @@ export const useSessionStore = defineStore('session', () => {
     lock()
     await disableBiometricUnlock()
     await clearLegacyBiometricMaterial()
+    await clearBiometricOfferDismissal()
     await (await getDatabase()).clearLocalData()
     record.value = null
     settings.value = { ...DEFAULT_APP_SETTINGS }

@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import { APP_NAME } from '@/app/version'
 import { MASTER_PIN_ERROR, normalizeMasterPinInput, vaultUsesMasterPin } from '@/features/security'
+import { offerBiometricSetupIfNeeded } from '@/services/secure/biometricOffer'
 import { useSessionStore } from '@/stores/session'
 
 const route = useRoute()
@@ -65,6 +66,9 @@ async function unlock() {
     await session.unlock(password.value)
     password.value = ''
     await finishUnlock()
+    const offered = await offerBiometricSetupIfNeeded(session)
+    if (offered === 'enabled') showToast('指纹或人脸解锁已开启')
+    else if (offered === 'failed') showToast('未能启用生物识别，可稍后在设置中开启')
   } catch (error) {
     showToast(session.errorMessage || (error instanceof Error ? error.message : '解锁失败'))
   }
