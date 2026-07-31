@@ -52,6 +52,8 @@ export const useSessionStore = defineStore('session', () => {
   const busy = ref(false)
   const errorMessage = ref<string | null>(null)
   const lastActiveAt = ref(Date.now())
+  /** Increments on every lock so keep-alive views can reset stale state. */
+  const lockEpoch = ref(0)
   const record = shallowRef<VaultRecord | null>(null)
   const settings = ref<AppSettings>({ ...DEFAULT_APP_SETTINGS })
   const biometricStatus = ref<BiometricStatus>({
@@ -203,6 +205,7 @@ export const useSessionStore = defineStore('session', () => {
     void clearSensitiveClipboard()
     dek.value = null
     payload.value = null
+    lockEpoch.value += 1
     status.value = record.value ? 'locked' : 'needs_setup'
   }
 
@@ -289,6 +292,7 @@ export const useSessionStore = defineStore('session', () => {
     busy,
     errorMessage,
     lastActiveAt,
+    lockEpoch,
     record,
     settings,
     biometricStatus,

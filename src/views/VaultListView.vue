@@ -1,13 +1,25 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onActivated, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { UNCATEGORIZED_FILTER } from '@/features/credentials'
+import { useSessionStore } from '@/stores/session'
 import { useVaultStore } from '@/stores/vault'
 
 const router = useRouter()
+const session = useSessionStore()
 const vault = useVaultStore()
 const query = ref('')
 const categoryFilter = ref<string | null>(null)
+let seenLockEpoch = session.lockEpoch
+
+// Search and filter survive in-app navigation (keep-alive), but a fresh
+// unlock should present a fresh list, not last session's leftovers.
+onActivated(() => {
+  if (session.lockEpoch === seenLockEpoch) return
+  seenLockEpoch = session.lockEpoch
+  query.value = ''
+  categoryFilter.value = null
+})
 
 const entries = computed(() => vault.listEntries(query.value, categoryFilter.value))
 const favoriteCount = computed(() => vault.entries.filter((entry) => entry.favorite).length)

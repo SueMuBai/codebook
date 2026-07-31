@@ -111,7 +111,6 @@ button:disabled { opacity: .46; cursor: not-allowed; transform: none !important;
 }
 
 @media (max-width: 520px) {
-  .page-header { align-items: flex-start; }
   .page-header .btn-primary, .page-header .btn-ghost { min-height: 44px; padding: 0 13px; }
   .card { padding: 17px; border-radius: 19px; }
 }
