@@ -4,17 +4,30 @@ import {
   assertVaultRecord,
   createVault,
   CryptoError,
+  openPayload,
   persistPayload,
   rewrapVaultPassword,
   unlockVault,
 } from '@/features/crypto'
 import { normalizeSettings } from '@/features/settings/validation'
+import {
+  assertMasterPin,
+  markVaultAsPinProtected,
+  vaultUsesMasterPin,
+} from '@/features/security'
 import { normalizeVaultPayload } from '@/features/vault'
 import { LegacyVaultError, getDatabase } from '@/services/database'
 import { setScreenProtection } from '@/services/platform/screenProtection'
 import { applyTheme } from '@/services/platform/theme'
 import { stopActiveScanner } from '@/services/scanner/QrScanner'
-import { clearLegacyBiometricMaterial } from '@/services/secure/biometric'
+import {
+  clearLegacyBiometricMaterial,
+  disableBiometricUnlock,
+  enableBiometricUnlock,
+  getBiometricStatus,
+  unlockDekWithBiometrics,
+  type BiometricStatus,
+} from '@/services/secure/biometric'
 import type {
   AppSettings,
   PortableSettings,
@@ -39,6 +52,11 @@ export const useSessionStore = defineStore('session', () => {
   const lastActiveAt = ref(Date.now())
   const record = shallowRef<VaultRecord | null>(null)
   const settings = ref<AppSettings>({ ...DEFAULT_APP_SETTINGS })
+  const biometricStatus = ref<BiometricStatus>({
+    available: false,
+    enabled: false,
+    reason: 'NOT_CHECKED',
+  })
 
   /** Sensitive state: memory only while unlocked. */
   const dek = shallowRef<CryptoKey | null>(null)
@@ -49,6 +67,15 @@ export const useSessionStore = defineStore('session', () => {
 
   function touchActivity(): void {
     lastActiveAt.value = Date.now()
+  }
+
+  async function refreshBiometricStatus(): Promise<BiometricStatus> {
+    try {
+      biometricStatus.value = await getBiometricStatus()
+    } catch {
+      biometricStatus.value = { available: false, enabled: false, reason: 'CHECK_FAILED' }
+    }
+    return biometricStatus.value
   }
 
   async function bootstrap(): Promise<void> {
@@ -64,6 +91,7 @@ export const useSessionStore = defineStore('session', () => {
       if (stored) assertVaultRecord(stored)
       record.value = stored
       status.value = stored ? 'locked' : 'needs_setup'
+      await refreshBiometricStatus()
     } catch (error) {
       if (
         error instanceof LegacyVaultError ||
@@ -81,13 +109,14 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   async function setup(password: string): Promise<void> {
-    assertPassword(password)
+    assertMasterPin(password)
     busy.value = true
     errorMessage.value = null
     try {
       const created = await createVault(password)
-      await (await getDatabase()).saveVaultRecord(created.record)
-      record.value = created.record
+      const nextRecord = markVaultAsPinProtected(created.record)
+      await (await getDatabase()).saveVaultRecord(nextRecord)
+      record.value = nextRecord
       dek.value = created.dek
       payload.value = created.payload
       status.value = 'unlocked'
@@ -103,6 +132,7 @@ export const useSessionStore = defineStore('session', () => {
 
   async function unlock(password: string): Promise<void> {
     if (!record.value) throw new Error('尚未创建保险箱')
+    if (vaultUsesMasterPin(record.value)) assertMasterPin(password)
     busy.value = true
     errorMessage.value = null
     try {
@@ -120,7 +150,9 @@ export const useSessionStore = defineStore('session', () => {
       }
       errorMessage.value =
         error instanceof CryptoError && error.code === 'WRONG_PASSWORD'
-          ? '主密码错误'
+          ? vaultUsesMasterPin(record.value)
+            ? '主 PIN 错误'
+            : '主密码错误'
           : error instanceof Error
             ? error.message
             : '解锁失败'
@@ -128,6 +160,42 @@ export const useSessionStore = defineStore('session', () => {
     } finally {
       busy.value = false
     }
+  }
+
+  async function unlockWithBiometrics(): Promise<void> {
+    if (!record.value) throw new Error('尚未创建保险箱')
+    busy.value = true
+    errorMessage.value = null
+    try {
+      const biometricDek = await unlockDekWithBiometrics()
+      const openedPayload = await openPayload(biometricDek, record.value.cipher)
+      dek.value = biometricDek
+      payload.value = openedPayload
+      status.value = 'unlocked'
+      touchActivity()
+      await setScreenProtection(settings.value.screenProtectionEnabled)
+    } catch (error) {
+      const code =
+        error && typeof error === 'object' && 'code' in error
+          ? String((error as { code?: unknown }).code ?? '')
+          : ''
+      errorMessage.value = code === 'CANCELLED' ? null : '生物识别解锁失败，请使用 PIN 解锁'
+      await refreshBiometricStatus()
+      throw error
+    } finally {
+      busy.value = false
+    }
+  }
+
+  async function setBiometricUnlockEnabled(enabled: boolean): Promise<void> {
+    if (enabled) {
+      if (!isUnlocked.value || !dek.value) throw new Error('请先解锁保险箱')
+      await enableBiometricUnlock(dek.value)
+    } else {
+      await disableBiometricUnlock()
+    }
+    await refreshBiometricStatus()
+    touchActivity()
   }
 
   function lock(): void {
@@ -151,12 +219,14 @@ export const useSessionStore = defineStore('session', () => {
 
   async function changeMasterPassword(currentPassword: string, nextPassword: string): Promise<void> {
     if (!record.value || !isUnlocked.value) throw new Error('保险箱未解锁')
-    assertPassword(nextPassword)
+    if (vaultUsesMasterPin(record.value)) assertMasterPin(currentPassword)
+    assertMasterPin(nextPassword)
     busy.value = true
     try {
       const changed = await rewrapVaultPassword(currentPassword, nextPassword, record.value)
-      await (await getDatabase()).saveVaultRecord(changed.record)
-      record.value = changed.record
+      const nextRecord = markVaultAsPinProtected(changed.record)
+      await (await getDatabase()).saveVaultRecord(nextRecord)
+      record.value = nextRecord
       dek.value = changed.dek
       payload.value = changed.payload
       touchActivity()
@@ -180,12 +250,14 @@ export const useSessionStore = defineStore('session', () => {
     portableSettings?: PortableSettings,
   ): Promise<void> {
     assertVaultRecord(nextRecord)
+    if (vaultUsesMasterPin(nextRecord)) assertMasterPin(password)
     await unlockVault(password, nextRecord)
     const nextSettings = normalizeSettings({
       ...settings.value,
       ...portableSettings,
       screenProtectionEnabled: settings.value.screenProtectionEnabled,
     })
+    await disableBiometricUnlock()
     await (await getDatabase()).replaceAll(nextRecord, nextSettings)
     record.value = nextRecord
     settings.value = nextSettings
@@ -195,6 +267,7 @@ export const useSessionStore = defineStore('session', () => {
 
   async function resetLocalData(): Promise<void> {
     lock()
+    await disableBiometricUnlock()
     await clearLegacyBiometricMaterial()
     await (await getDatabase()).clearLocalData()
     record.value = null
@@ -218,6 +291,7 @@ export const useSessionStore = defineStore('session', () => {
     lastActiveAt,
     record,
     settings,
+    biometricStatus,
     dek,
     payload,
     isUnlocked,
@@ -225,6 +299,9 @@ export const useSessionStore = defineStore('session', () => {
     bootstrap,
     setup,
     unlock,
+    unlockWithBiometrics,
+    setBiometricUnlockEnabled,
+    refreshBiometricStatus,
     lock,
     savePayload,
     changeMasterPassword,
@@ -235,7 +312,3 @@ export const useSessionStore = defineStore('session', () => {
     checkAutoLock,
   }
 })
-
-function assertPassword(password: string): void {
-  if (password.length < 8) throw new Error('主密码至少需要 8 位')
-}

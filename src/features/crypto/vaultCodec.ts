@@ -74,6 +74,9 @@ export function assertVaultRecord(value: unknown): asserts value is VaultRecord 
   if (meta.version !== VAULT_FORMAT_VERSION) {
     throw new CryptoError('UNSUPPORTED_VERSION', `不支持的 vault 版本：${String(meta.version)}`)
   }
+  if (meta.credentialType !== undefined && meta.credentialType !== 'pin') {
+    throw new CryptoError('INVALID_PAYLOAD', 'vault 凭据类型无效')
+  }
   if (meta.kdf?.algorithm !== 'PBKDF2' || meta.kdf.hash !== 'SHA-256') {
     throw new CryptoError('UNSUPPORTED_VERSION', '不支持的 KDF')
   }

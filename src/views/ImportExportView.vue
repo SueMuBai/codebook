@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import {
@@ -8,6 +8,7 @@ import {
   parseCsvEntries,
   parseEncryptedPackage,
 } from '@/features/export'
+import { MASTER_PIN_ERROR, normalizeMasterPinInput, vaultUsesMasterPin } from '@/features/security'
 import { pickTextFile, saveTextFile } from '@/services/platform/files'
 import { useSessionStore } from '@/stores/session'
 import { useVaultStore } from '@/stores/vault'
@@ -21,6 +22,22 @@ const selectedFile = ref('')
 const backupPassword = ref('')
 const showBackupPassword = ref(false)
 const resultMessage = ref('')
+
+const encryptedPackage = computed(() => {
+  if (!importText.value.trim().startsWith('{')) return null
+  try {
+    return parseEncryptedPackage(importText.value)
+  } catch {
+    return null
+  }
+})
+const backupUsesPin = computed(() => vaultUsesMasterPin(encryptedPackage.value?.vault))
+
+watch([backupPassword, backupUsesPin], ([value, pinMode]) => {
+  if (!pinMode) return
+  const normalized = normalizeMasterPinInput(value)
+  if (value !== normalized) backupPassword.value = normalized
+})
 
 const csvPreview = computed(() => {
   const text = importText.value.trim()
@@ -91,9 +108,11 @@ async function exportCsv() {
 }
 
 async function importEncrypted() {
-  if (!backupPassword.value) return showToast('请输入备份对应的主密码')
+  if (!backupPassword.value) return showToast(backupUsesPin.value ? '请输入备份对应的主 PIN' : '请输入备份对应的主密码')
+  if (backupUsesPin.value && backupPassword.value.length !== 6) return showToast(MASTER_PIN_ERROR)
   try {
     const pkg = parseEncryptedPackage(importText.value)
+    const pinBackup = vaultUsesMasterPin(pkg.vault)
     await showConfirmDialog({
       title: '替换当前保险箱',
       message: '备份验证成功后会完整替换本机保险箱。当前数据请先另行备份。',
@@ -103,7 +122,7 @@ async function importEncrypted() {
     await session.importVault(pkg.vault, backupPassword.value, pkg.settings)
     backupPassword.value = ''
     importText.value = ''
-    showToast('导入成功，请使用备份主密码解锁')
+    showToast(`导入成功，请使用备份${pinBackup ? '主 PIN' : '主密码'}解锁`)
     await router.replace('/lock')
   } catch (error) {
     const message = error instanceof Error ? error.message : '导入失败'
@@ -159,8 +178,8 @@ async function importCsv() {
       <div class="export-grid">
         <section class="card backup-card">
           <div class="backup-card__header"><span class="backup-card__icon"><AppIcon name="shield" :size="27" /></span><span class="recommend-badge"><AppIcon name="check" :size="13" />推荐</span></div>
-          <div><span class="eyebrow">完整保护</span><h2>完整加密备份</h2><p>包含分类、全部条目、自定义字段、TOTP 和邮箱关联。文件保持加密，恢复时需要导出时的主密码。</p></div>
-          <ul class="backup-features"><li><AppIcon name="lock" :size="16" />端到端加密的数据包</li><li><AppIcon name="vault" :size="16" />保留完整保险箱结构</li><li><AppIcon name="key" :size="16" />由当前主密码保护</li></ul>
+          <div><span class="eyebrow">完整保护</span><h2>完整加密备份</h2><p>包含分类、全部条目、自定义字段、TOTP 和邮箱关联。文件保持加密，恢复时需要导出时的主 PIN 或旧主密码。</p></div>
+          <ul class="backup-features"><li><AppIcon name="lock" :size="16" />端到端加密的数据包</li><li><AppIcon name="vault" :size="16" />保留完整保险箱结构</li><li><AppIcon name="key" :size="16" />由当前解锁凭据保护</li></ul>
           <button class="btn-primary" type="button" @click="exportEncrypted"><AppIcon name="download" :size="18" />导出加密 JSON</button>
         </section>
 
@@ -179,7 +198,7 @@ async function importCsv() {
         <label><span class="field-label">文件内容</span><textarea v-model="importText" class="textarea mono import-text" rows="9" placeholder="选择文件，或在此粘贴加密 JSON / CSV" /></label>
         <div v-if="csvPreview" class="preview"><span class="preview__label"><AppIcon name="info" :size="18" />CSV 预览</span><span class="preview-stat"><strong>{{ csvPreview.entries.length }}</strong><small>有效</small></span><span class="preview-stat"><strong>{{ csvPreview.skipped }}</strong><small>跳过</small></span><span class="preview-stat" :class="{ 'preview-stat--danger': csvPreview.failed }"><strong>{{ csvPreview.failed }}</strong><small>失败</small></span></div>
         <div class="import-bottom">
-          <label class="password-field"><span class="field-label">备份主密码（仅导入加密 JSON 时需要）</span><span class="field-with-icon"><AppIcon name="key" :size="18" /><input v-model="backupPassword" class="input" :type="showBackupPassword ? 'text' : 'password'" autocomplete="current-password" placeholder="输入备份导出时使用的主密码" /><button type="button" :aria-label="showBackupPassword ? '隐藏备份主密码' : '显示备份主密码'" @click="showBackupPassword = !showBackupPassword"><AppIcon :name="showBackupPassword ? 'eyeOff' : 'eye'" :size="18" /></button></span></label>
+          <label class="password-field"><span class="field-label">{{ backupUsesPin ? '备份主 PIN' : '备份主密码' }}（仅导入加密 JSON 时需要）</span><span class="field-with-icon"><AppIcon name="key" :size="18" /><input v-model="backupPassword" class="input" :class="{ mono: backupUsesPin }" :type="showBackupPassword ? 'text' : 'password'" :inputmode="backupUsesPin ? 'numeric' : 'text'" :pattern="backupUsesPin ? '[0-9]*' : undefined" autocomplete="current-password" :placeholder="backupUsesPin ? '输入备份的 6 位主 PIN' : '输入备份导出时使用的原主密码'" /><button type="button" :aria-label="showBackupPassword ? '隐藏备份凭据' : '显示备份凭据'" @click="showBackupPassword = !showBackupPassword"><AppIcon :name="showBackupPassword ? 'eyeOff' : 'eye'" :size="18" /></button></span></label>
           <div class="import-actions"><button class="btn-primary" type="submit"><AppIcon name="shield" :size="18" />导入加密备份</button><button class="btn-ghost" type="button" @click="importCsv"><AppIcon name="file" :size="18" />导入 CSV</button></div>
         </div>
         <p v-if="resultMessage" class="result-message text-sm"><AppIcon name="info" :size="18" />{{ resultMessage }}</p>

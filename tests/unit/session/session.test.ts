@@ -22,7 +22,41 @@ describe('session store', () => {
     setActivePinia(createPinia())
   })
 
-  it('does not replace the current vault when backup password validation fails', async () => {
+  it('creates new vaults with a strict six-digit PIN marker', async () => {
+    const session = useSessionStore()
+    await expect(session.setup('password')).rejects.toThrow('主 PIN 必须为 6 位数字')
+    await expect(session.setup('12345')).rejects.toThrow('主 PIN 必须为 6 位数字')
+
+    await session.setup('012345')
+    expect(session.record?.meta.credentialType).toBe('pin')
+    session.lock()
+    await expect(session.unlock('01234')).rejects.toThrow('主 PIN 必须为 6 位数字')
+    await session.unlock('012345')
+    expect(session.isUnlocked).toBe(true)
+  })
+
+  it('keeps legacy passwords unlockable and migrates them when changed to a PIN', async () => {
+    const legacy = await createVault('legacy-long-password', { iterations: 100_000 })
+    await (await getDatabase()).saveVaultRecord(legacy.record)
+    const session = useSessionStore()
+    await session.bootstrap()
+    await session.unlock('legacy-long-password')
+
+    await expect(
+      session.changeMasterPassword('legacy-long-password', 'new-password'),
+    ).rejects.toThrow('主 PIN 必须为 6 位数字')
+    await session.changeMasterPassword('legacy-long-password', '654321')
+    expect(session.record?.meta.credentialType).toBe('pin')
+
+    session.lock()
+    await expect(session.unlock('legacy-long-password')).rejects.toThrow(
+      '主 PIN 必须为 6 位数字',
+    )
+    await session.unlock('654321')
+    expect(session.isUnlocked).toBe(true)
+  })
+
+  it('keeps legacy backup passwords compatible without replacing data after a failed attempt', async () => {
     const current = await createVault('current-password', { iterations: 100_000 })
     const imported = await createVault('backup-password', { iterations: 100_000 })
     const db = await getDatabase()
@@ -35,6 +69,12 @@ describe('session store', () => {
       code: 'WRONG_PASSWORD',
     })
     expect(await db.getVaultRecord()).toEqual(current.record)
+    expect(session.isUnlocked).toBe(true)
+
+    await session.importVault(imported.record, 'backup-password')
+    expect(await db.getVaultRecord()).toEqual(imported.record)
+    expect(session.status).toBe('locked')
+    await session.unlock('backup-password')
     expect(session.isUnlocked).toBe(true)
   })
 

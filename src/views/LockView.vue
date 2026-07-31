@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import { APP_NAME } from '@/app/version'
+import { MASTER_PIN_ERROR, normalizeMasterPinInput, vaultUsesMasterPin } from '@/features/security'
 import { useSessionStore } from '@/stores/session'
 
 const route = useRoute()
@@ -10,20 +11,62 @@ const router = useRouter()
 const session = useSessionStore()
 const password = ref('')
 const showPassword = ref(false)
+const biometricAttempted = ref(false)
+const usesPin = computed(() => vaultUsesMasterPin(session.record))
+const canUseBiometrics = computed(
+  () =>
+    session.status === 'locked' &&
+    session.biometricStatus.available &&
+    session.biometricStatus.enabled,
+)
+
+watch([password, usesPin], ([value, pinMode]) => {
+  if (!pinMode) return
+  const normalized = normalizeMasterPinInput(value)
+  if (value !== normalized) password.value = normalized
+})
 
 onMounted(async () => {
   if (session.status === 'booting') await session.bootstrap()
+  if (canUseBiometrics.value) await unlockWithBiometrics(true)
 })
 
+function biometricErrorCode(error: unknown): string {
+  return error && typeof error === 'object' && 'code' in error
+    ? String((error as { code?: unknown }).code ?? '')
+    : ''
+}
+
+async function finishUnlock() {
+  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/vault'
+  await router.replace(redirect)
+}
+
+async function unlockWithBiometrics(automatic = false) {
+  if (!canUseBiometrics.value || session.busy) return
+  if (automatic) {
+    if (biometricAttempted.value) return
+    biometricAttempted.value = true
+  }
+  try {
+    await session.unlockWithBiometrics()
+    await finishUnlock()
+  } catch (error) {
+    if (biometricErrorCode(error) !== 'CANCELLED') {
+      showToast(session.errorMessage || '生物识别解锁失败，请使用 PIN')
+    }
+  }
+}
+
 async function unlock() {
-  if (!password.value) return showToast('请输入主密码')
+  if (!password.value) return showToast(usesPin.value ? '请输入主 PIN' : '请输入主密码')
+  if (usesPin.value && password.value.length !== 6) return showToast(MASTER_PIN_ERROR)
   try {
     await session.unlock(password.value)
     password.value = ''
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/vault'
-    await router.replace(redirect)
-  } catch {
-    showToast(session.errorMessage || '解锁失败')
+    await finishUnlock()
+  } catch (error) {
+    showToast(session.errorMessage || (error instanceof Error ? error.message : '解锁失败'))
   }
 }
 
@@ -58,12 +101,14 @@ async function retryBootstrap() {
 
       <form class="lock-panel" @submit.prevent="unlock">
         <input type="text" name="username" value="codebook-local-vault" autocomplete="username" hidden />
-        <div class="lock-panel__heading"><span><AppIcon name="lock" :size="22" /></span><div><h2>解锁保险箱</h2><p>输入主密码继续</p></div></div>
+        <div class="lock-panel__heading"><span><AppIcon name="lock" :size="22" /></span><div><h2>解锁保险箱</h2><p>{{ usesPin ? '输入 6 位主 PIN 继续' : '输入原主密码继续' }}</p></div></div>
 
         <template v-if="session.status === 'locked' || session.status === 'booting'">
+          <button v-if="canUseBiometrics" class="btn-primary biometric-button" type="button" :disabled="session.busy" @click="unlockWithBiometrics()"><AppIcon name="fingerprint" :size="21" />{{ session.busy ? '正在验证…' : '使用指纹或人脸解锁' }}</button>
+          <div v-if="canUseBiometrics" class="unlock-divider"><span>{{ usesPin ? '或使用主 PIN' : '或使用原主密码' }}</span></div>
           <label>
-            <span class="field-label">主密码</span>
-            <div class="password-field"><AppIcon name="key" :size="18" /><input v-model="password" class="input" :type="showPassword ? 'text' : 'password'" autocomplete="current-password" placeholder="输入主密码" :disabled="session.busy" @keyup.enter="unlock" /><button type="button" :aria-label="showPassword ? '隐藏主密码' : '显示主密码'" @click="showPassword = !showPassword"><AppIcon :name="showPassword ? 'eyeOff' : 'eye'" :size="18" /></button></div>
+            <span class="field-label">{{ usesPin ? '主 PIN' : '原主密码' }}</span>
+            <div class="password-field"><AppIcon name="key" :size="18" /><input v-model="password" class="input" :class="{ mono: usesPin }" :type="showPassword ? 'text' : 'password'" :inputmode="usesPin ? 'numeric' : 'text'" :pattern="usesPin ? '[0-9]*' : undefined" autocomplete="current-password" :placeholder="usesPin ? '输入 6 位数字' : '输入原主密码'" :disabled="session.busy" @keyup.enter="unlock" /><button type="button" :aria-label="showPassword ? '隐藏解锁凭据' : '显示解锁凭据'" @click="showPassword = !showPassword"><AppIcon :name="showPassword ? 'eyeOff' : 'eye'" :size="18" /></button></div>
           </label>
           <p v-if="session.errorMessage" class="inline-error"><AppIcon name="info" :size="17" />{{ session.errorMessage }}</p>
           <button class="btn-primary unlock-button" type="submit" :disabled="session.busy"><AppIcon name="lock" :size="18" />{{ session.busy ? '正在解锁…' : '解锁保险箱' }}</button>
@@ -102,6 +147,9 @@ async function retryBootstrap() {
 .password-field { position: relative; }.password-field > .app-icon { position: absolute; z-index: 1; left: 14px; top: 50%; transform: translateY(-50%); color: var(--color-text-muted); }.password-field .input { padding-left: 43px; padding-right: 50px; }.password-field button { position: absolute; right: 3px; top: 3px; width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: transparent; color: var(--color-text-muted); cursor: pointer; }
 .inline-error { display: flex; align-items: center; gap: 7px; margin-top: -8px; color: var(--color-danger); font-size: 12px; }
 .unlock-button { width: 100%; }
+.biometric-button { width: 100%; min-height: 52px; }
+.unlock-divider { display: flex; align-items: center; gap: 10px; color: var(--color-text-muted); font-size: 12px; }
+.unlock-divider::before, .unlock-divider::after { height: 1px; flex: 1; content: ''; background: var(--color-border); }
 .lock-footnote { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--color-text-muted); font-size: 12px; }
 @media (min-width: 760px) { .lock-layout { grid-template-columns: 1.1fr .9fr; } .lock-panel { padding: 30px; } }
 @media (max-width: 759px) { .lock-visual { align-items: center; text-align: center; gap: 18px; }.lock-seal { width: 76px; height: 76px; border-radius: 24px; }.lock-seal span { font-size: 29px; }.lock-visual h1 { font-size: 38px; }.lock-proof { display: none; } }

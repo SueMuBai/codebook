@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
+import { MASTER_PIN_ERROR, normalizeMasterPinInput, vaultUsesMasterPin } from '@/features/security'
 import { useSessionStore } from '@/stores/session'
 
 const router = useRouter()
@@ -10,18 +11,34 @@ const currentPassword = ref('')
 const nextPassword = ref('')
 const confirmPassword = ref('')
 const showPasswords = ref(false)
+const currentUsesPin = computed(() => vaultUsesMasterPin(session.record))
+
+watch([currentPassword, currentUsesPin], ([value, pinMode]) => {
+  if (!pinMode) return
+  const normalized = normalizeMasterPinInput(value)
+  if (value !== normalized) currentPassword.value = normalized
+})
+watch(nextPassword, (value) => {
+  const normalized = normalizeMasterPinInput(value)
+  if (value !== normalized) nextPassword.value = normalized
+})
+watch(confirmPassword, (value) => {
+  const normalized = normalizeMasterPinInput(value)
+  if (value !== normalized) confirmPassword.value = normalized
+})
 
 async function submit() {
-  if (!currentPassword.value) return showToast('请输入当前主密码')
-  if (nextPassword.value.length < 8) return showToast('新主密码至少需要 8 位')
-  if (nextPassword.value !== confirmPassword.value) return showToast('两次输入的新主密码不一致')
-  if (nextPassword.value === currentPassword.value) return showToast('新主密码不能与当前密码相同')
+  if (!currentPassword.value) return showToast(currentUsesPin.value ? '请输入当前主 PIN' : '请输入当前主密码')
+  if (currentUsesPin.value && currentPassword.value.length !== 6) return showToast(MASTER_PIN_ERROR)
+  if (nextPassword.value.length !== 6) return showToast(MASTER_PIN_ERROR)
+  if (nextPassword.value !== confirmPassword.value) return showToast('两次输入的新主 PIN 不一致')
+  if (nextPassword.value === currentPassword.value) return showToast('新主 PIN 不能与当前凭据相同')
   try {
     await session.changeMasterPassword(currentPassword.value, nextPassword.value)
     currentPassword.value = ''
     nextPassword.value = ''
     confirmPassword.value = ''
-    showToast('主密码已修改')
+    showToast('主 PIN 已修改')
     await router.replace('/settings')
   } catch (error) {
     showToast(error instanceof Error ? error.message : '修改失败')
@@ -34,24 +51,24 @@ async function submit() {
     <div class="page-content stack">
       <header class="page-header">
         <button class="btn-icon page-back" type="button" aria-label="返回" @click="router.back()"><AppIcon name="back" /></button>
-        <div class="page-header__title"><h1 class="text-xl">修改主密码</h1><p class="text-muted text-sm">更新进入密语保险箱的唯一凭据</p></div>
+        <div class="page-header__title"><h1 class="text-xl">修改主 PIN</h1><p class="text-muted text-sm">更新进入密语保险箱的 6 位数字凭据</p></div>
       </header>
       <div class="password-layout">
         <aside class="password-story">
           <span class="password-story__mark"><AppIcon name="key" :size="34" /></span>
           <span class="eyebrow">快速 · 本地 · 安全</span>
           <h2>只更换保护层，<br>不重写全部条目</h2>
-          <p>密语会用新主密码重新保护数据密钥，保险箱内容不会逐条重新加密，因此修改过程快速且完全在本机完成。</p>
+          <p>密语会用新主 PIN 重新保护数据密钥，保险箱内容不会逐条重新加密，因此修改过程快速且完全在本机完成。</p>
           <div class="story-points"><span><AppIcon name="check" :size="17" />无需账号或网络</span><span><AppIcon name="check" :size="17" />条目内容保持不变</span><span><AppIcon name="check" :size="17" />完成后继续正常使用</span></div>
         </aside>
         <form class="card password-form stack" @submit.prevent="submit">
           <input type="text" name="username" value="codebook-local-vault" autocomplete="username" hidden />
-          <div class="section-heading"><div class="section-heading__copy"><h2 class="section-title">验证并更新</h2><p>请先验证当前主密码，再输入新的主密码</p></div><span class="step-badge mono">01 / 01</span></div>
-          <label><span class="field-label">当前主密码</span><span class="field-with-icon"><AppIcon name="lock" :size="18" /><input v-model="currentPassword" class="input" :type="showPasswords ? 'text' : 'password'" autocomplete="current-password" placeholder="用于确认你的身份" /><button type="button" :aria-label="showPasswords ? '隐藏密码' : '显示密码'" @click="showPasswords = !showPasswords"><AppIcon :name="showPasswords ? 'eyeOff' : 'eye'" :size="18" /></button></span></label>
+          <div class="section-heading"><div class="section-heading__copy"><h2 class="section-title">验证并更新</h2><p>请先验证当前凭据，再输入新的 6 位数字主 PIN</p></div><span class="step-badge mono">01 / 01</span></div>
+          <label><span class="field-label">{{ currentUsesPin ? '当前主 PIN' : '当前主密码' }}</span><span class="field-with-icon"><AppIcon name="lock" :size="18" /><input v-model="currentPassword" class="input" :class="{ mono: currentUsesPin }" :type="showPasswords ? 'text' : 'password'" :inputmode="currentUsesPin ? 'numeric' : 'text'" :pattern="currentUsesPin ? '[0-9]*' : undefined" autocomplete="current-password" placeholder="用于确认你的身份" /><button type="button" :aria-label="showPasswords ? '隐藏当前凭据' : '显示当前凭据'" @click="showPasswords = !showPasswords"><AppIcon :name="showPasswords ? 'eyeOff' : 'eye'" :size="18" /></button></span></label>
           <div class="divider" />
-          <label><span class="field-label">新主密码</span><span class="field-with-icon"><AppIcon name="key" :size="18" /><input v-model="nextPassword" class="input" :type="showPasswords ? 'text' : 'password'" autocomplete="new-password" placeholder="至少 8 位，建议使用长密码" /><button type="button" :aria-label="showPasswords ? '隐藏密码' : '显示密码'" @click="showPasswords = !showPasswords"><AppIcon :name="showPasswords ? 'eyeOff' : 'eye'" :size="18" /></button></span></label>
-          <label><span class="field-label">确认新主密码</span><span class="field-with-icon"><AppIcon name="check" :size="18" /><input v-model="confirmPassword" class="input" :type="showPasswords ? 'text' : 'password'" autocomplete="new-password" placeholder="再次输入新主密码" @keyup.enter="submit" /><button type="button" :aria-label="showPasswords ? '隐藏密码' : '显示密码'" @click="showPasswords = !showPasswords"><AppIcon :name="showPasswords ? 'eyeOff' : 'eye'" :size="18" /></button></span></label>
-          <div class="notice-panel notice-panel--warning"><AppIcon name="info" :size="20" /><span class="text-sm"><strong>旧备份不会自动更新</strong><br>现有加密备份仍使用导出时的旧主密码，请妥善保管或重新导出。</span></div>
+          <label><span class="field-label">新主 PIN</span><span class="field-with-icon"><AppIcon name="key" :size="18" /><input v-model="nextPassword" class="input mono" :type="showPasswords ? 'text' : 'password'" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" placeholder="输入 6 位数字" /><button type="button" :aria-label="showPasswords ? '隐藏新主 PIN' : '显示新主 PIN'" @click="showPasswords = !showPasswords"><AppIcon :name="showPasswords ? 'eyeOff' : 'eye'" :size="18" /></button></span></label>
+          <label><span class="field-label">确认新主 PIN</span><span class="field-with-icon"><AppIcon name="check" :size="18" /><input v-model="confirmPassword" class="input mono" :type="showPasswords ? 'text' : 'password'" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" placeholder="再次输入 6 位数字" @keyup.enter="submit" /><button type="button" :aria-label="showPasswords ? '隐藏确认 PIN' : '显示确认 PIN'" @click="showPasswords = !showPasswords"><AppIcon :name="showPasswords ? 'eyeOff' : 'eye'" :size="18" /></button></span></label>
+          <div class="notice-panel notice-panel--warning"><AppIcon name="info" :size="20" /><span class="text-sm"><strong>旧备份不会自动更新</strong><br>现有加密备份仍使用导出时的原主 PIN 或旧主密码，请妥善保管或重新导出。</span></div>
           <button class="btn-primary submit-button" type="submit" :disabled="session.busy"><AppIcon name="shield" :size="18" />{{ session.busy ? '正在修改…' : '确认修改' }}</button>
         </form>
       </div>

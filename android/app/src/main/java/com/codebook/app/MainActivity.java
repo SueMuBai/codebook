@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         registerPlugin(ScreenProtectionPlugin.class);
+        registerPlugin(BiometricVaultPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

@@ -16,6 +16,8 @@ export interface AesGcmBlob {
 
 export interface VaultMeta {
   version: 2
+  /** Missing on vaults created before the six-digit PIN flow. */
+  credentialType?: 'pin'
   kdf: KdfParams
   wrappedDek: AesGcmBlob
   createdAt: number

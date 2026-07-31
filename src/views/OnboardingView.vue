@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { APP_NAME } from '@/app/version'
+import { MASTER_PIN_ERROR, normalizeMasterPinInput } from '@/features/security'
 import { useSessionStore } from '@/stores/session'
 
 const router = useRouter()
@@ -11,20 +12,20 @@ const password = ref('')
 const confirmPassword = ref('')
 const showPasswords = ref(false)
 
-const strengthScore = computed(() => {
-  const value = password.value
-  let score = 0
-  if (value.length >= 8) score += 1
-  if (value.length >= 12) score += 1
-  if (/[a-z]/.test(value) && /[A-Z]/.test(value)) score += 1
-  if (/\d/.test(value) && /[^\w]/.test(value)) score += 1
-  return score
+const pinProgress = computed(() => password.value.length)
+
+watch(password, (value) => {
+  const normalized = normalizeMasterPinInput(value)
+  if (value !== normalized) password.value = normalized
 })
-const strength = computed(() => ['过短', '一般', '较好', '强', '很强'][strengthScore.value]!)
+watch(confirmPassword, (value) => {
+  const normalized = normalizeMasterPinInput(value)
+  if (value !== normalized) confirmPassword.value = normalized
+})
 
 async function createVault() {
-  if (password.value.length < 8) return showToast('主密码至少需要 8 位')
-  if (password.value !== confirmPassword.value) return showToast('两次输入的主密码不一致')
+  if (password.value.length !== 6) return showToast(MASTER_PIN_ERROR)
+  if (password.value !== confirmPassword.value) return showToast('两次输入的主 PIN 不一致')
   try {
     await session.setup(password.value)
     password.value = ''
@@ -47,7 +48,7 @@ async function createVault() {
           <p>在设备本地建立加密保险箱。没有账号，没有云端，也没有第三方能够替你打开它。</p>
         </div>
         <ul class="feature-list">
-          <li><span><AppIcon name="lock" /></span><div><strong>本地强加密</strong><small>主密码保护随机数据密钥</small></div></li>
+          <li><span><AppIcon name="lock" /></span><div><strong>本地强加密</strong><small>主 PIN 保护随机数据密钥</small></div></li>
           <li><span><AppIcon name="shield" /></span><div><strong>无账号系统</strong><small>不注册，不上传，不追踪</small></div></li>
           <li><span><AppIcon name="file" /></span><div><strong>备份由你掌控</strong><small>加密 JSON 可离线迁移</small></div></li>
         </ul>
@@ -57,23 +58,23 @@ async function createVault() {
         <input type="text" name="username" value="codebook-local-vault" autocomplete="username" hidden />
         <div class="auth-panel__heading">
           <span class="auth-panel__icon"><AppIcon name="vault" :size="24" /></span>
-          <div><p class="eyebrow">SET UP</p><h2>创建保险箱</h2><p>设置唯一的主密码，开始保存你的登录信息。</p></div>
+          <div><p class="eyebrow">SET UP</p><h2>创建保险箱</h2><p>设置 6 位数字主 PIN，开始保存你的登录信息。</p></div>
         </div>
 
         <label>
-          <span class="field-label">主密码</span>
-          <span class="password-control"><input v-model="password" class="input" :type="showPasswords ? 'text' : 'password'" autocomplete="new-password" placeholder="至少 8 位，建议 12 位以上" /><button type="button" :aria-label="showPasswords ? '隐藏主密码' : '显示主密码'" @click="showPasswords = !showPasswords"><AppIcon :name="showPasswords ? 'eyeOff' : 'eye'" :size="18" /></button></span>
+          <span class="field-label">6 位数字主 PIN</span>
+          <span class="password-control"><input v-model="password" class="input mono" :type="showPasswords ? 'text' : 'password'" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" placeholder="输入 6 位数字" /><button type="button" :aria-label="showPasswords ? '隐藏主 PIN' : '显示主 PIN'" @click="showPasswords = !showPasswords"><AppIcon :name="showPasswords ? 'eyeOff' : 'eye'" :size="18" /></button></span>
         </label>
         <div class="strength-block" aria-live="polite">
-          <div class="strength-track"><span :style="{ width: `${Math.max(8, strengthScore * 25)}%` }" /></div>
-          <div class="split text-sm"><span class="text-muted">密码强度</span><strong :class="strengthScore >= 3 ? 'success-text' : 'warning-text'">{{ strength }}</strong></div>
+          <div class="strength-track"><span :style="{ width: `${pinProgress / 6 * 100}%` }" /></div>
+          <div class="split text-sm"><span class="text-muted">输入进度</span><strong :class="pinProgress === 6 ? 'success-text' : 'warning-text'">{{ pinProgress }} / 6</strong></div>
         </div>
         <label>
-          <span class="field-label">确认主密码</span>
-          <span class="password-control"><input v-model="confirmPassword" class="input" :type="showPasswords ? 'text' : 'password'" autocomplete="new-password" placeholder="再次输入主密码" @keyup.enter="createVault" /><button type="button" :aria-label="showPasswords ? '隐藏确认密码' : '显示确认密码'" @click="showPasswords = !showPasswords"><AppIcon :name="showPasswords ? 'eyeOff' : 'eye'" :size="18" /></button></span>
+          <span class="field-label">确认主 PIN</span>
+          <span class="password-control"><input v-model="confirmPassword" class="input mono" :type="showPasswords ? 'text' : 'password'" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" placeholder="再次输入 6 位数字" @keyup.enter="createVault" /><button type="button" :aria-label="showPasswords ? '隐藏确认 PIN' : '显示确认 PIN'" @click="showPasswords = !showPasswords"><AppIcon :name="showPasswords ? 'eyeOff' : 'eye'" :size="18" /></button></span>
         </label>
 
-        <div class="notice-panel notice-panel--warning text-sm"><AppIcon name="info" :size="18" /><span>主密码不会上传，也无法找回。遗忘后只能清空本地数据重新创建。</span></div>
+        <div class="notice-panel notice-panel--warning text-sm"><AppIcon name="info" :size="18" /><span>主 PIN 不会上传，也无法找回。遗忘后只能清空本地数据重新创建。</span></div>
         <button class="btn-primary auth-submit" type="submit" :disabled="session.busy"><AppIcon name="lock" :size="18" />{{ session.busy ? '正在创建…' : '创建本地保险箱' }}</button>
       </form>
     </div>

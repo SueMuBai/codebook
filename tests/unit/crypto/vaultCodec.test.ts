@@ -68,6 +68,22 @@ describe('vault v2 crypto', () => {
     ).toThrow('时间戳')
   })
 
+  it('accepts the optional PIN marker and rejects unknown credential markers', async () => {
+    const created = await createVault('password', { iterations: TEST_ITERATIONS })
+    expect(() =>
+      assertVaultRecord({
+        ...created.record,
+        meta: { ...created.record.meta, credentialType: 'pin' },
+      }),
+    ).not.toThrow()
+    expect(() =>
+      assertVaultRecord({
+        ...created.record,
+        meta: { ...created.record.meta, credentialType: 'unknown' },
+      }),
+    ).toThrow('凭据类型')
+  })
+
   it('detects tampered ciphertext', async () => {
     const created = await createVault('secret-password', { iterations: TEST_ITERATIONS })
     const tampered: VaultRecord = {

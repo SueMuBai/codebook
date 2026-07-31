@@ -1,7 +1,7 @@
 # 密语（codebook）产品与实现设计
 
 > **文档状态：** v1 实现基线 / 唯一维护处  
-> **最后校对：** 2026-07-30（已完成源码、自动化、浏览器及 Android 模拟器核心路径对照）  
+> **最后校对：** 2026-07-31（已完成 6 位主 PIN、Android Keystore 生物识别和页面滚动修复）
 > **适用平台：** 浏览器 + Android（Capacitor）  
 > **架构参考：** [`ARCHITECTURE_AND_DESIGN.md`](./ARCHITECTURE_AND_DESIGN.md) 仅提供 Vue 3 + Capacitor 的分层模式；产品、数据、安全和验收决策以本文为准。
 
@@ -17,24 +17,24 @@
 
 密语是一款无账号、无云端依赖的本地凭据管理器。用户应能在浏览器和 Android 上完成以下闭环：
 
-1. 创建主密码并初始化本地加密保险箱。
+1. 创建 6 位数字主 PIN 并初始化本地加密保险箱。
 2. 解锁后管理账号、密码、网址、备注、分类、自定义字段和收藏。
 3. 为一个条目管理多个 TOTP，支持扫码、粘贴 URI 和手工录入。
 4. 将条目关联到其它邮箱身份，并在条目之间导航。
 5. 搜索、复制敏感内容、自动锁定并控制敏感信息的显示时间。
 6. 使用加密备份完整迁移数据，或用 CSV 做有风险提示的明文交换。
-7. 在 Android 上控制截屏和最近任务预览保护。
+7. 在 Android 上控制截屏和最近任务预览保护，并使用指纹或强人脸快捷解锁。
 
 ### 1.2 v1 范围
 
 | 能力 | v1 约定 |
 |---|---|
 | 数据位置 | 仅本机；浏览器 IndexedDB / Android SQLite |
-| 加密 | 主密码 PBKDF2-SHA-256 + AES-GCM；随机 DEK 加密整库 |
+| 加密 | 6 位主 PIN（旧主密码兼容）PBKDF2-SHA-256 + AES-GCM；随机 DEK 加密整库 |
 | 条目 | 标准字段、单分类、收藏、自定义字段、多个 TOTP、邮箱关联 |
 | 导入导出 | 加密 JSON 完整备份；CSV 明文子集 |
 | 平台 | 浏览器与 Android |
-| 生物识别 | v1 暂不开放；完成 Android Keystore 安全封装后再启用 |
+| 生物识别 | Android Keystore 认证绑定密钥封装 DEK；指纹/强人脸解锁，失败回退主 PIN |
 
 ### 1.3 明确不做
 
@@ -43,7 +43,7 @@
 - 浏览器扩展、系统自动填充和密码泄露联网检查
 - 推送式 2FA、短信 2FA、Steam Guard 等非标准协议
 - 从相册选择二维码图片
-- 主密码找回或服务端恢复
+- 主 PIN / 旧主密码找回或服务端恢复
 - Argon2 默认 KDF（保留未来格式升级空间）
 
 ### 1.4 v1 完成定义
@@ -53,7 +53,7 @@
 - 本文所有 v1 功能均有可用 UI，不存在“只有类型或 Store、页面不可达”的能力。
 - 加密备份能够完整往返所有领域数据；失败导入不会覆盖现有保险箱。
 - 浏览器自动化质量门槛全部通过，Android 核心路径完成真机验收。
-- 当前不安全的生物识别实现已禁用，并清除历史 Preferences 中的原始 DEK。
+- 历史 Preferences 原始 DEK 会被清除；当前生物识别只保存 Android Keystore 加密后的 DEK 密文。
 - Android 屏幕保护、扫码生命周期、后台锁定和返回键行为符合本文约定。
 
 ---
@@ -64,15 +64,15 @@
 
 | 页面 | 建议路由 | 主要职责 |
 |---|---|---|
-| 引导 | `/onboarding` | 创建主密码、说明无法找回、初始化保险箱 |
-| 锁定 | `/lock` | 主密码解锁；不展示未安全实现的生物识别入口 |
+| 引导 | `/onboarding` | 创建 6 位主 PIN、说明无法找回、初始化保险箱 |
+| 锁定 | `/lock` | 优先指纹/强人脸解锁；主 PIN 或旧主密码作为回退 |
 | 保险箱列表 | `/vault` | 搜索、分类筛选、收藏排序、新建条目 |
 | 条目详情 | `/vault/:id` | 查看与复制字段、展示全部 TOTP、关联与反向引用 |
 | 条目编辑 | `/vault/new`、`/vault/:id/edit` | 编辑全部条目字段；未保存内容只存在于页面草稿 |
 | 分类管理 | `/categories` | 新增、改名、颜色、排序、删除分类 |
-| 设置 | `/settings` | 锁定、主题、安全显示、剪贴板、主密码与数据管理 |
+| 设置 | `/settings` | 生物识别、锁定、主题、安全显示、剪贴板、主 PIN 与数据管理 |
 | 导入导出 | `/settings/import-export` | 文件选择、导出、预检、风险确认和结果摘要 |
-| 修改主密码 | `/settings/master-password` | 校验旧密码、输入并确认新密码、重新包裹 DEK |
+| 修改主 PIN | `/settings/master-password` | 校验当前凭据、输入并确认 6 位新 PIN、重新包裹 DEK |
 
 主导航只保留“保险箱”和“设置”。分类管理作为保险箱列表的二级入口，不新增底部 Tab。
 
@@ -97,7 +97,7 @@ Android 返回键和页面返回按钮必须遵循同一优先级：
 - 保存条目只由页面“保存”按钮触发。
 - 添加 TOTP、绑定邮箱、自定义字段操作只修改条目草稿，不能绕过条目保存直接落库。
 - 扫码成功后先展示可编辑确认表单；用户确认“添加”后才进入草稿。
-- 修改主密码、导入备份、清空数据和关闭屏幕保护都是独立高风险动作。
+- 修改主 PIN、启用生物识别、导入备份、清空数据和关闭屏幕保护都是独立高风险动作。
 - 复制账号、密码、TOTP 和自定义字段分别提供独立按钮。
 
 ---
@@ -160,10 +160,11 @@ Android 返回键和页面返回按钮必须遵循同一优先级：
 
 详情页展示正向关联，并通过内存扫描展示“被哪些条目引用”。关联是单向的；A 关联 B 不会自动修改 B。
 
-### 3.4 主密码与锁定
+### 3.4 主 PIN、生物识别与锁定
 
-- 创建和修改主密码沿用至少 8 位规则，不要求固定字符组合；UI 提供强度提示和无法找回说明。
-- 修改主密码必须验证旧密码并两次确认新密码，只重新派生 KEK 和包裹 DEK，不重新加密整个 payload。
+- 新建和修改凭据严格使用 6 位 ASCII 数字主 PIN；`VaultMeta.credentialType = 'pin'` 标记新流程。旧记录缺少标记时继续接受原主密码，修改后迁移为 PIN。
+- 修改主 PIN 必须验证当前 PIN/旧密码并两次确认新 PIN，只重新派生 KEK 和包裹 DEK，不重新加密整个 payload。
+- Android 可在解锁状态启用指纹/强人脸；锁屏优先自动发起一次系统认证，取消或失败后回退主 PIN。
 - 修改成功后保存新的 vault record，并保持当前会话解锁。
 - 默认空闲 90 秒自动锁定；用户可选择关闭或设置 30/60/90/180/300 秒。
 - 应用因 Home、任务切换、系统回收等普通原因进入后台时立即锁定，不受空闲时间设置影响。
@@ -180,7 +181,8 @@ Android 返回键和页面返回按钮必须遵循同一优先级：
 - TOTP 显示时间
 - Android 屏幕保护
 - 导入导出
-- 修改主密码
+- 修改主 PIN
+- Android 指纹/强人脸解锁
 - 立即锁定
 - 清空本地数据
 
@@ -334,7 +336,7 @@ interface AppSettings {
 ```
 
 - `screenProtectionEnabled` 替代语义不完整的 `hideFromRecents`，Android 默认 `true`。
-- v1 移除 `biometricEnabled`；未来生物识别状态属于设备安全存储能力，不进入可移植设置。
+- 生物识别状态属于设备 Keystore/本地插件能力，不进入可移植设置或备份。
 - 设置导入时不覆盖 `screenProtectionEnabled`，避免其它设备的备份降低本机保护等级。
 
 ### 4.6 备份包
@@ -354,7 +356,7 @@ interface EncryptedExportPackageV2 {
 }
 ```
 
-解析备份时对字段类型、版本、KDF 参数范围、Base64 格式和必需字段做严格校验。只有使用备份主密码成功解开 DEK 和 payload 后，才允许调用 `saveVaultRecord()`。
+解析备份时对字段类型、版本、KDF 参数范围、Base64 格式和必需字段做严格校验。只有使用备份主 PIN 或旧主密码成功解开 DEK 和 payload 后，才允许调用 `saveVaultRecord()`。
 
 ---
 
@@ -363,7 +365,7 @@ interface EncryptedExportPackageV2 {
 ### 5.1 密钥流程
 
 ```text
-主密码 + 随机 salt
+主 PIN / 旧主密码 + 随机 salt
   → PBKDF2-SHA-256（默认 600,000 次，实际值写入 meta）
   → KEK
 
@@ -376,19 +378,13 @@ KEK
   → VaultMeta.wrappedDek
 ```
 
-错误密码通过解包 `wrappedDek` 的 AES-GCM 认证失败判断，不另存 verifier。主密码和明文 DEK 不落库；salt、KDF 参数、wrapped DEK 和整库密文可以明文持久化。
+错误 PIN/密码通过解包 `wrappedDek` 的 AES-GCM 认证失败判断，不另存 verifier。PIN、旧密码和明文 DEK 不落库；salt、KDF 参数、wrapped DEK 和整库密文可以明文持久化。
 
 ### 5.2 生物识别处理
 
-旧版开发实现曾把可直接导入的原始 DEK 以 Base64 存在 Capacitor Preferences，仅在读取前弹出生物识别认证。这不等同于 Android Keystore 封装，不能视为安全实现；当前 v1 已移除入口、数据和应用声明中的生物识别权限。
+旧版开发实现曾把可直接导入的原始 DEK 以 Base64 存在 Capacitor Preferences；启动时仍强制删除 `codebook.biometric.wrappedDek` 历史值。
 
-v1 必须：
-
-1. 隐藏锁定页和设置页的生物识别入口。
-2. 启动时删除 `codebook.biometric.wrappedDek` 历史值。
-3. 将遗留 `biometricEnabled` 归一化为关闭。
-
-未来重新启用时，必须由 Android Keystore 生成不可导出的设备密钥并加密 DEK；应用只保存密文，认证失败或生物信息变化时回退主密码。
+当前实现由 Android Keystore 生成不可导出的 AES-256 密钥，设置 `setUserAuthenticationRequired(true)` 并要求 `BIOMETRIC_STRONG`。启用时通过 `BiometricPrompt` 授权加密内存中的 DEK，只把 AES-GCM IV 和密文写入原生私有 SharedPreferences；解锁时再次通过 `BiometricPrompt` 授权解密。指纹/人脸信息变化会使密钥失效并清理密文，认证取消、锁定或不可用时回退主 PIN。浏览器不显示生物识别入口。
 
 ### 5.3 会话、剪贴板与屏幕
 
@@ -401,7 +397,7 @@ v1 必须：
 ### 5.4 禁止事项
 
 - 以明文 JSON 作为默认或完整备份
-- 将 secret、主密码、DEK、完整 otpauth URI 写入日志
+- 将 secret、主 PIN、旧主密码、DEK、完整 otpauth URI 写入日志
 - 在验证前覆盖当前 vault
 - 在组件卸载或锁定后继续持有摄像头
 - 将原始 DEK 存入 Preferences、SQLite、IndexedDB 或普通文件
@@ -416,17 +412,17 @@ v1 必须：
 - 全项目展示名称统一为“密语”，英文标识保持 `codebook`。
 - 定义 v2 类型、默认值、严格校验和旧格式拒绝流程。
 - 将数据库持久化边界改为原子 `VaultRecord`。
-- 隐藏生物识别并清理 Preferences 中的历史原始 DEK。
+- 清理 Preferences 中的历史原始 DEK，并为后续 Keystore 实现保留迁移边界。
 - 修复质量工具链，使 lint、test 和 build 可真实执行。
 
-**验收：** 新建 v2 vault 可重载解锁；v1 数据得到明确重置提示；模拟写入失败不会留下半个 vault；生物识别入口和历史 DEK 均不存在。
+**验收：** 新建 v2 vault 可重载解锁；v1 数据得到明确重置提示；模拟写入失败不会留下半个 vault；历史明文 DEK 不再存在。
 
 ### M1 — 领域模型全覆盖
 
 - 分类管理、筛选和分类删除处理。
 - 自定义字段增删改、排序、遮罩与复制。
 - 全部 TOTP 展示、编辑、排序和显示时间设置。
-- 主题设置、Android 屏幕保护设置和主密码修改。
+- 主题设置、Android 屏幕保护设置和主 PIN 修改。
 - 设置页提供清空本地数据的二次确认流程。
 
 **验收：** 所有 `CredentialEntry` 和 `AppSettings` 字段均能从 UI 创建、修改、保存并重载恢复。
@@ -459,17 +455,17 @@ v1 必须：
 | 工程与命名 | 已完成 | 中文展示名为“密语”，英文工程名、包名和持久化前缀为 `codebook` |
 | Crypto / v2 格式 | 已完成 | vault、payload、backup 均为严格 v2；错误密码、篡改和旧格式分别处理 |
 | IndexedDB | 已完成 | 单键原子保存 `VaultRecord`，替换保险箱与设置使用同一事务 |
-| Android SQLite | 已完成并通过模拟器验收 | 使用 `SQLiteConnection` / `SQLiteDBConnection` 管理原生连接；冷启动建库、强制停止后重载和主密码解锁均通过 |
+| Android SQLite | 已完成并通过模拟器验收 | 使用 `SQLiteConnection` / `SQLiteDBConnection` 管理原生连接；冷启动建库、强制停止后重载和凭据解锁均通过 |
 | 条目 / 分类 / 自定义字段 | 已完成 | 全字段 CRUD、分类筛选与管理、排序、遮罩、复制和删除分类降级均可达 |
 | TOTP | 已完成 | 多 TOTP、严格且规范化的 URI/Base32、三种算法、排序、扫码确认、issuer/账号展示和定时显示均已接入 UI；锁定或卸载会同步销毁验证码与定时器 |
 | 扫码与返回键 | 已完成并通过模拟器可测部分 | Web 本机解析、Android ML Kit、权限弹窗期间取消、幂等停止、扫码层/Dialog/二级页/根页/锁定页返回优先级均通过；权限拒绝有自动化覆盖，待真机权限矩阵与真实二维码验收 |
 | 邮箱关联 | 已完成 | 支持文本/库内搜索、正反向展示、快照和被引用条目删除时原子转换 |
 | 搜索 / 收藏 / 密码生成 | 已完成 | 当前分类范围内搜索，收藏优先排序，安全随机密码生成 |
-| 会话与设置 | 已完成 | 空闲/普通后台立即锁定、受信任系统 UI 生命周期、主题、剪贴板定时及锁定时立即清理、TOTP 显示、立即锁定、清空数据和主密码修改均可用；模拟器 Home/重启锁定通过 |
+| 会话与设置 | 已完成 | 空闲/普通后台立即锁定、受信任系统 UI 生命周期、主题、剪贴板定时及锁定时立即清理、TOTP 显示、立即锁定、清空数据和主 PIN 修改均可用；模拟器 Home/重启锁定通过 |
 | Android 屏幕保护 | 已完成并通过模拟器验收 | `FLAG_SECURE` 默认开启；关闭前风险确认，关闭后截图恢复，重新开启后截图再次被阻止；待真机最近任务与物理截屏验证 |
 | 导入导出 | 已完成并通过模拟器可测部分 | Android 系统选择器完成 CSV 选择、合法/跳过/失败统计、确认和入库；Filesystem 已写出文件、调用 Share 并在流程结束清理缓存副本，待真机分享目标验收 |
-| 生物识别 | 已按 v1 决策禁用 | 无 UI、合并清单已显式移除传递的生物识别权限；启动及清空数据时删除历史 `codebook.biometric.wrappedDek` |
-| 自动化测试 | 已完成当前基线 | 20 个测试文件、62 个用例，覆盖 crypto、数据库、TOTP、扫码权限与权限弹窗取消、剪贴板、原生文件服务、完整备份、会话、系统 UI 生命周期、路由和返回键逻辑；Android 包名仪器测试也已在 API 36 模拟器通过 |
+| 生物识别 | 已实现，待真机矩阵 | Android Keystore + AES-GCM 封装 DEK，系统 BiometricPrompt 要求强生物识别；设置页可开关，锁屏自动/手动触发，取消或失效回退主 PIN |
+| 自动化测试 | 已完成当前基线 | 21 个测试文件、68 个用例，新增 6 位 PIN、旧密码迁移与备份兼容覆盖；原有 crypto、数据库、TOTP、扫码、剪贴板、文件、会话、路由和生命周期测试保持通过 |
 
 当前剩余工作不是产品功能开发，而是发布设备验收：Android 真机真实二维码对码、权限状态、物理截屏/最近任务和系统分享必须按 8.2 执行。
 
@@ -481,27 +477,27 @@ v1 必须：
 
 | 领域 | 必测场景 |
 |---|---|
-| Crypto | 创建/解锁、错误密码、密文篡改、修改主密码、v1 拒绝、v2 往返 |
+| Crypto | PIN 创建/解锁、旧密码兼容、错误凭据、密文篡改、修改 PIN、v1 拒绝、v2 往返 |
 | Database | 原子保存、并发串行化、失败回滚、清空数据、浏览器重载 |
 | TOTP | RFC 6238 SHA-1/SHA-256/SHA-512、位数、周期、非法 URI/Base32 |
 | Credential | 分类删除、自定义字段、搜索、收藏排序、关联删除转换、反向引用 |
 | Export | v2 严格解析、错误密码不覆盖、完整备份往返、CSV 转义与统计 |
 | Session | 空闲锁、后台锁、锁定时销毁 payload/TOTP/scanner |
-| UI | 引导、CRUD、分类、多 TOTP、扫码确认、主密码修改、设置持久化 |
+| UI | 引导、6 位 PIN、生物识别入口、CRUD、分类、多 TOTP、扫码确认、设置持久化与页面滚动 |
 
 ### 8.2 Android 设备验收
 
 #### 8.2.1 API 36 模拟器已完成
 
 - 清数据冷启动进入引导页；创建保险箱后生成 `codebook_vaultSQLite.db`。
-- 强制停止并重启后进入锁定页，重新输入主密码可从 SQLite 恢复保险箱。
+- 强制停止并重启后进入锁定页，重新输入主 PIN/旧密码可从 SQLite 恢复保险箱。
 - Home 切后台后立即锁定；已解锁根页返回锁定，锁定页返回桌面。
 - 扫码层返回只关闭扫码并保留编辑页；Dialog 返回只关闭 Dialog；二级页返回上级页面。
 - `FLAG_SECURE` 默认开启时系统截图为 0 字节；风险确认关闭后得到有效 PNG；重新开启后再次为 0 字节。
 - Android DocumentsUI 可选择真实 CSV，页面完成预览、风险确认、导入统计并在保险箱显示新记录。
 - Filesystem 成功写出加密 JSON 并调用原生 Share；当前模拟器无可用分享目标，系统返回 `Share canceled`，应用已将取消作为正常结果处理。
 - 当前模拟器权限控制器会自动授予相机权限，无法形成可信的“拒绝/永久拒绝”系统 UI 证据；两条分支由自动化测试覆盖，仍保留真机验收。
-- 最终 APK 在 API 36 AVD 重新安装并清数据后仍进入“欢迎使用密语”引导页；`com.codebook.app` 包名仪器测试通过，安装包版本为 `1.0.0`。APK 声明相机这一项用户授权权限，以及 `INTERNET`、`ACCESS_NETWORK_STATE` 和 AndroidX 动态接收器签名权限；不包含 `QUERY_ALL_PACKAGES`、`USE_BIOMETRIC` 或 `USE_FINGERPRINT`。
+- 2026-07-30 基线 APK 在 API 36 AVD 的安装、SQLite 和屏幕保护路径已通过；2026-07-31 新增的生物识别权限和 Keystore 流程仍需在真机重新执行本节矩阵。
 
 主要证据位于 `output/android-acceptance/`，包括引导页、重启锁定、返回键层级、屏幕保护开关、文件选择与 CSV 导入结果的 UI hierarchy/截图。最终刷新证据位于 `output/android-acceptance/final-revalidation/`，其中 `android-api36-final-onboarding.png` 为 API 36 AVD 清数据后的引导页，Gradle 仪器测试报告位于 `android/app/build/reports/androidTests/connected/debug/`。
 
@@ -511,8 +507,9 @@ v1 必须：
 - 拒绝、永久拒绝和重新授权相机权限。
 - 扫码时返回、切后台、自动锁和进程重建。
 - 开启/关闭屏幕保护后验证截屏和最近任务预览。
+- 启用/关闭指纹或强人脸解锁；验证成功、取消、连续失败、系统锁定、生物信息变化和无录入状态均能回退主 PIN。
 - 从系统文件选择器导入备份，导出并分享备份。
-- 杀进程后必须重新输入主密码；不得出现生物识别入口或遗留快捷解锁。
+- 杀进程后使用已启用的生物识别或主 PIN 解锁；禁用生物识别后不得继续快捷解锁。
 
 ### 8.3 质量命令
 
@@ -537,7 +534,7 @@ npx cap sync android
 - `gradlew.bat --no-daemon connectedDebugAndroidTest`：通过，API 36 模拟器执行 `com.codebook.app` 包名仪器测试；同时统一 Android 测试图中的 Kotlin stdlib 版本，消除旧 Cordova 测试依赖的重复类冲突。
 - `npm audit --omit=dev`：0 个生产依赖漏洞。
 
-最终 Debug APK 大小为 50,653,691 字节，SHA-256 为 `af4ce81bab70ad1618a5b1fa533f2a831f1cb2d3c567c7cc79ce45a8fb82d99e`。合并清单与安装包均不包含 `QUERY_ALL_PACKAGES`、`USE_BIOMETRIC` 或 `USE_FINGERPRINT`。
+该段记录的是 2026-07-30 生物识别启用前的 Debug APK 基线。当前版本会声明 `USE_BIOMETRIC` / `USE_FINGERPRINT`，新的 APK 大小与 SHA-256 以本轮构建结果为准。
 
 浏览器验收使用 Windows Chrome 150（Playwright 经 CDP 驱动），在 390×844 与 1280×900 视口完成：初始化/解锁、分类、完整条目保存与重载、自定义字段遮罩、多 TOTP、邮箱关联、搜索与分类筛选、主题、TOTP 10 秒重新遮罩、主密码修改、立即锁定、错误密码拒绝、加密备份失败不覆盖与成功往返、CSV 风险确认/预览/导入统计。错误备份密码后原条目仍存在；正确备份密码触发替换确认，恢复完成后强制回到锁屏；CSV 实测为有效 1 条、跳过 1 行、失败 1 条，确认后只新增该有效条目；修改主密码后旧密码被拒绝，新密码解锁后两条记录均完整。引导、解锁、主密码修改、条目编辑和导入页面的密码输入均位于语义化 `form` 中。验收结束时控制台为 0 error、0 warning。
 
@@ -553,6 +550,15 @@ npx cap sync android
 - TOTP 扫描层支持初始焦点、焦点循环和 Escape 关闭；Android 扫描阶段使用透明背景以显示原生相机预览。辅助文字不小于 12px，交互目标不小于 44px。
 - UI 需求基线见 `docs/UI_REQUIREMENTS.md`；浏览器复核截图位于本地 `output/playwright/`，该目录作为临时验收产物被 Git 忽略。
 - 本轮质量基线：TypeScript 检查通过，ESLint 0 warning，20 个测试文件共 62 个用例通过，Vite production build 与 `npx cap sync android` 通过；浏览器核心路由无脚本错误或横向溢出。Linux JDK 21 + Android SDK 35 环境下 `assembleDebug` 通过，Debug APK 为 48,101,411 字节，SHA-256 为 `82e90206a1ab3f1b0f187449a9236141a1883836a5143bdcfc11daefc70f8993`。
+
+#### 8.3.2 主 PIN、生物识别与滚动修复（2026-07-31）
+
+- 新保险箱和修改流程使用严格 6 位数字主 PIN；VaultMeta 增加可选 `credentialType: 'pin'`，旧记录和旧备份缺少标记时仍接受原主密码，修改后迁移为 PIN。
+- Android 新增 `BiometricVault` 原生插件。DEK 仅在内存与 Capacitor 调用返回值中短暂出现，持久化材料是认证绑定 Keystore AES 密钥产生的 AES-GCM 密文；浏览器端保持不支持状态。
+- 锁屏在已启用时自动发起一次指纹/强人脸认证，并提供手动按钮；用户取消不会显示错误，直接回退主 PIN。设置页提供启用/关闭和硬件、录入、安全更新等状态说明。
+- 导入其它保险箱或清空本地数据时同步删除生物识别密文和 Keystore 条目；修改主 PIN 不更换 DEK，因此已启用的生物识别仍可继续使用。
+- 修复 `.app-shell` 未形成受限高度的问题，保险箱与设置页面重新由 `.app-page` 纵向滚动。
+- 自动化基线更新为 21 个测试文件、68 个用例；浏览器和 Android 原生构建结果见本轮发布记录。
 
 Android 原生门槛分为三层：Gradle `assembleDebug` 已通过；API 36 模拟器核心路径已通过；8.2.2 的真实二维码、权限矩阵、物理截屏/最近任务和系统分享仍必须在真机完成，模拟器或编译成功不能替代真机结论。
 
@@ -574,7 +580,7 @@ Android 原生门槛分为三层：Gradle `assembleDebug` 已通过；API 36 模
 | 加密备份完整往返，错误密码/替换失败前不修改当前 vault | 全领域集合备份测试、session 错误密码不覆盖测试、IndexedDB/SQLite 原子替换测试 | 通过 |
 | CSV 明文风险确认、有损列、合法/跳过/失败统计且只新增 | export 单测、浏览器验收、API 36 DocumentsUI 实际文件导入证据 | 通过 |
 | Android 文件分享使用原生 Filesystem/Share，结束后清理缓存副本 | `tests/unit/platform/files.test.ts`、API 36 Share 调用证据 | 模拟器通过；真实分享目标待真机 |
-| 生物识别入口、权限和历史原始 DEK 均不存在 | 启动/清空时强制 Preferences 清理；源码无入口；合并清单、安装包和 `dumpsys package` 均无生物识别权限 | 通过 |
+| 生物识别只持久化 Keystore 加密材料，历史原始 DEK 被清理 | `BiometricVaultPlugin.java`、`biometric.ts`、session 导入/重置清理与 Android 权限清单 | 源码/编译通过；真机认证矩阵待验收 |
 | 敏感内容不写 localStorage/Pinia persist/日志 | 全源码静态检索无 local/sessionStorage、持久化插件或 console 日志；敏感持久化仅数据库适配器和用户主动导出流程 | 通过 |
 | `FLAG_SECURE` 默认安全启动、风险确认开关和恢复 | `MainActivity` 在 WebView 启动前置位；模拟器开启/关闭/恢复截图证据 | 模拟器通过；物理截屏与最近任务待真机 |
 | 真机真实二维码、物理权限/截屏/最近任务/分享/进程恢复 | 8.2.2 清单 | **待真机，发布阻断** |
@@ -589,6 +595,6 @@ Android 原生门槛分为三层：Gradle `assembleDebug` 已通过；API 36 模
 4. 当前 v1 开发数据允许清空；正式目标直接使用不兼容的 v2 格式。
 5. 模型中已有的分类、自定义字段、主题、TOTP 显示和屏幕保护全部属于功能完整 v1。
 6. Android 屏幕保护默认开启，用户可经风险确认关闭。
-7. 生物识别在安全 Keystore 方案完成前保持禁用。
+7. Android 生物识别只允许使用认证绑定的 Keystore 密钥封装 DEK；不支持或失败时始终保留主 PIN 回退。
 8. 加密 JSON 是权威完整备份；CSV 永远是明文、有损交换格式。
 9. 浏览器与 Android 是 v1 发布平台，其它平台和云能力均不阻塞 v1。
