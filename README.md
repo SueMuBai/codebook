@@ -15,10 +15,15 @@
 
 生物识别暂未开放。旧原型曾将原始 DEK 写入 Preferences，v1 启动时会主动清理该遗留数据；未来只接受 Android Keystore 封装方案。
 
+## UI 设计
+
+当前界面已按“薄荷绿 × 浅天蓝”方向整体重构，使用低对比半透明表面、清晰的信息层级与一致的 44px 最小触控区域。移动端采用底部主导航，桌面端切换为侧边栏；核心页面同时适配 390×844 与 1280×900，并提供浅色、深色和跟随系统三种主题。密码与 TOTP 默认遮罩，所有密码流程使用语义化表单和可访问的显示/隐藏控件。
+
 ## 文档
 
 - [产品与实现设计](docs/IMPLEMENTATION_PLAN.md)
 - [Vue/Capacitor 架构参考](docs/ARCHITECTURE_AND_DESIGN.md)
+- [UI 需求规范](docs/UI_REQUIREMENTS.md)
 
 ## 开发
 

@@ -14,7 +14,47 @@ function go(path: string) {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'has-navigation': showNav }">
+    <aside v-if="showNav" class="app-sidebar" aria-label="主导航">
+      <button class="app-brand" type="button" aria-label="进入保险箱" @click="go('/vault')">
+        <span class="app-brand__mark">密</span>
+        <span class="app-brand__copy">
+          <strong>{{ APP_NAME }}</strong>
+          <small>codebook</small>
+        </span>
+      </button>
+
+      <nav class="app-sidebar__nav">
+        <button
+          type="button"
+          class="app-sidebar__item"
+          :class="{ 'is-active': activeTab === 'vault' }"
+          @click="go('/vault')"
+        >
+          <AppIcon name="vault" />
+          <span>保险箱</span>
+        </button>
+        <button
+          type="button"
+          class="app-sidebar__item"
+          :class="{ 'is-active': activeTab === 'settings' }"
+          @click="go('/settings')"
+        >
+          <AppIcon name="settings" />
+          <span>设置</span>
+        </button>
+      </nav>
+
+      <div class="app-sidebar__trust">
+        <AppIcon name="shield" :size="18" />
+        <div>
+          <strong>仅保存在本机</strong>
+          <span>无账号 · 无云同步</span>
+        </div>
+      </div>
+      <p class="app-sidebar__version">v{{ APP_VERSION }}</p>
+    </aside>
+
     <main class="app-main">
       <router-view v-slot="{ Component, route: currentRoute }">
         <keep-alive>
@@ -39,7 +79,7 @@ function go(path: string) {
         :class="{ 'is-active': activeTab === 'vault' }"
         @click="go('/vault')"
       >
-        <span class="app-bottom-nav__icon" aria-hidden="true">▤</span>
+        <AppIcon name="vault" :size="21" />
         <span>保险箱</span>
       </button>
       <button
@@ -48,11 +88,11 @@ function go(path: string) {
         :class="{ 'is-active': activeTab === 'settings' }"
         @click="go('/settings')"
       >
-        <span class="app-bottom-nav__icon" aria-hidden="true">⚙</span>
+        <AppIcon name="settings" :size="21" />
         <span>设置</span>
       </button>
     </nav>
 
-    <p class="app-build-tag">{{ APP_NAME }} · v{{ APP_VERSION }}</p>
+    <p v-if="!showNav" class="app-build-tag">{{ APP_NAME }} · v{{ APP_VERSION }}</p>
   </div>
 </template>

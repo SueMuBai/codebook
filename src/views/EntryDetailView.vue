@@ -119,7 +119,7 @@ async function removeEntry() {
       title: '删除条目',
       message: '引用它的邮箱关联会转换为文本快照。删除后只能通过备份恢复。',
       confirmButtonText: '删除',
-      confirmButtonColor: '#d84f61',
+      confirmButtonColor: '#e11d48',
     })
     await vault.deleteEntry(id.value)
     showToast('条目已删除')
@@ -154,88 +154,78 @@ watch(
   <div class="app-page">
     <div class="page-content stack">
       <header class="page-header">
-        <button class="btn-ghost" type="button" @click="router.back()">返回</button>
-        <div class="cluster">
-          <button class="btn-ghost" type="button" @click="router.push(`/vault/${id}/edit`)">编辑</button>
-          <button class="btn-danger" type="button" @click="removeEntry">删除</button>
-        </div>
+        <button class="btn-icon page-back" type="button" aria-label="返回" @click="router.back()"><AppIcon name="back" /></button>
+        <button v-if="entry" class="btn-primary" type="button" @click="router.push(`/vault/${id}/edit`)"><AppIcon name="edit" :size="18" />编辑条目</button>
       </header>
 
-      <section v-if="!entry" class="card stack"><h1 class="text-xl">条目不存在</h1><button class="btn-primary" @click="router.replace('/vault')">返回保险箱</button></section>
+      <section v-if="!entry" class="card missing-state"><span><AppIcon name="info" :size="30" /></span><h1 class="text-xl">条目不存在</h1><p class="text-muted text-sm">它可能已经被删除，或当前链接已经失效。</p><button class="btn-primary" type="button" @click="router.replace('/vault')">返回保险箱</button></section>
 
       <template v-else>
         <div class="entry-hero">
           <span class="hero-avatar">{{ entry.title.slice(0, 1).toUpperCase() }}</span>
-          <div class="grow"><h1 class="text-xl"><span v-if="entry.favorite" class="favorite">★ </span>{{ entry.title }}</h1><p class="text-muted text-sm">{{ category?.name || '未分类' }}</p></div>
+          <div class="grow hero-copy"><div class="cluster"><span class="eyebrow">保险箱记录</span><span v-if="entry.favorite" class="favorite-pill"><AppIcon name="star" :size="13" />收藏</span></div><h1>{{ entry.title }}</h1><div class="hero-meta"><span><span class="category-dot" :style="{ background: category?.color || 'var(--color-text-muted)' }" />{{ category?.name || '未分类' }}</span><span v-if="entry.totp.length"><AppIcon name="shield" :size="14" />已启用 2FA</span><span><AppIcon name="timer" :size="14" />{{ formatTime(entry.lastUsedAt) }}</span></div></div>
         </div>
 
-        <section class="card stack">
-          <h2 class="section-title">登录信息</h2>
-          <div class="detail-row"><span class="detail-label">网址</span><button class="value-button" :disabled="!entry.url" @click="openUrl">{{ entry.url || '—' }}</button></div>
-          <div class="detail-row"><span class="detail-label">账号</span><button class="value-button" @click="copy(entry.username, '账号')">{{ entry.username || '—' }}</button></div>
-          <div class="detail-row"><span class="detail-label">密码</span><button class="value-button mono" @click="copy(entry.password, '密码')">{{ entry.password ? '••••••••  点按复制' : '—' }}</button></div>
-          <div class="detail-row detail-row--column"><span class="detail-label">备注</span><p class="notes">{{ entry.notes || '—' }}</p></div>
-        </section>
+        <div class="detail-layout">
+          <main class="detail-main stack">
+            <section class="card detail-card">
+              <div class="section-heading"><div class="section-heading__copy"><h2 class="section-title">登录信息</h2><p>点按对应内容即可执行复制或打开操作</p></div><span class="section-mark"><AppIcon name="key" /></span></div>
+              <div class="info-row"><span class="info-row__icon"><AppIcon name="globe" :size="18" /></span><span class="info-row__copy"><small>网址</small><strong>{{ entry.url || '未填写' }}</strong></span><button class="row-action" type="button" :disabled="!entry.url" @click="openUrl"><AppIcon name="globe" :size="17" />打开</button></div>
+              <div class="info-row"><span class="info-row__icon"><AppIcon name="user" :size="18" /></span><span class="info-row__copy"><small>账号</small><strong>{{ entry.username || '未填写' }}</strong></span><button class="row-action" type="button" :disabled="!entry.username" @click="copy(entry.username, '账号')"><AppIcon name="copy" :size="17" />复制</button></div>
+              <div class="info-row"><span class="info-row__icon"><AppIcon name="lock" :size="18" /></span><span class="info-row__copy"><small>密码</small><strong class="mono password-mask">{{ entry.password ? '••••••••••••' : '未填写' }}</strong></span><button class="row-action" type="button" :disabled="!entry.password" @click="copy(entry.password, '密码')"><AppIcon name="copy" :size="17" />复制</button></div>
+              <div class="notes-block"><span class="info-row__icon"><AppIcon name="note" :size="18" /></span><div><small>备注</small><p class="notes">{{ entry.notes || '暂无备注' }}</p></div></div>
+            </section>
 
-        <section class="card stack metadata-card">
-          <h2 class="section-title">记录信息</h2>
-          <div class="detail-row"><span class="detail-label">创建</span><span class="grow text-right text-sm">{{ formatTime(entry.createdAt) }}</span></div>
-          <div class="detail-row"><span class="detail-label">更新</span><span class="grow text-right text-sm">{{ formatTime(entry.updatedAt) }}</span></div>
-          <div class="detail-row"><span class="detail-label">最近使用</span><span class="grow text-right text-sm">{{ formatTime(entry.lastUsedAt) }}</span></div>
-        </section>
+            <section v-if="entry.totp.length" class="card detail-card">
+              <div class="section-heading"><div class="section-heading__copy"><h2 class="section-title">2FA 验证码</h2><p>验证码只在当前设备生成，点按代码即可复制</p></div><span class="section-mark section-mark--safe"><AppIcon name="shield" /></span></div>
+              <div class="totp-grid">
+                <article v-for="item in entry.totp" :key="item.id" class="totp-card">
+                  <div class="split"><div><strong>{{ item.label || item.issuer || 'TOTP' }}</strong><p class="text-muted text-xs">{{ totpMeta(item) }}</p></div><span class="countdown mono">{{ codes[item.id]?.remaining ?? item.period }}s</span></div>
+                  <button v-if="!isTotpVisible(item.id)" class="totp-code masked" type="button" @click="revealTotp(item.id)"><AppIcon name="eye" :size="19" />点按显示</button>
+                  <button v-else class="totp-code mono" type="button" @click="copy(codes[item.id]?.code, '验证码')">{{ codes[item.id]?.code || '······' }}</button>
+                  <span class="totp-progress"><span :style="{ width: `${Math.max(0, Math.min(100, ((codes[item.id]?.remaining ?? item.period) / item.period) * 100))}%` }" /></span>
+                </article>
+              </div>
+            </section>
 
-        <section v-if="entry.customFields.length" class="card stack">
-          <h2 class="section-title">自定义字段</h2>
-          <div v-for="field in entry.customFields" :key="field.id" class="detail-row">
-            <span class="detail-label">{{ field.name }}</span>
-            <div class="cluster grow justify-end">
-              <button v-if="field.masked" class="btn-icon" @click="toggleField(field.id)">{{ revealedFields.has(field.id) ? '藏' : '显' }}</button>
-              <button class="value-button mono" @click="copy(field.value, field.name)">{{ field.masked && !revealedFields.has(field.id) ? '••••••••' : field.value || '—' }}</button>
-            </div>
-          </div>
-        </section>
+            <section v-if="entry.customFields.length" class="card detail-card">
+              <div class="section-heading"><div class="section-heading__copy"><h2 class="section-title">自定义字段</h2><p>附加的恢复信息和安全资料</p></div><span class="section-mark"><AppIcon name="note" /></span></div>
+              <div v-for="field in entry.customFields" :key="field.id" class="info-row"><span class="info-row__icon"><AppIcon :name="field.masked ? 'lock' : 'file'" :size="18" /></span><span class="info-row__copy"><small>{{ field.name }}</small><strong class="mono">{{ field.masked && !revealedFields.has(field.id) ? '••••••••' : field.value || '未填写' }}</strong></span><button v-if="field.masked" class="row-action row-action--icon" type="button" :aria-label="revealedFields.has(field.id) ? '隐藏字段' : '显示字段'" @click="toggleField(field.id)"><AppIcon :name="revealedFields.has(field.id) ? 'eyeOff' : 'eye'" :size="17" /></button><button class="row-action" type="button" :disabled="!field.value" @click="copy(field.value, field.name)"><AppIcon name="copy" :size="17" />复制</button></div>
+            </section>
 
-        <section v-if="entry.totp.length" class="card stack">
-          <h2 class="section-title">2FA 验证码</h2>
-          <article v-for="item in entry.totp" :key="item.id" class="totp-card">
-            <div class="split"><div><strong>{{ item.label || item.issuer || 'TOTP' }}</strong><p class="text-muted text-xs">{{ totpMeta(item) }}</p></div><span class="text-muted text-sm">{{ codes[item.id]?.remaining ?? item.period }}s</span></div>
-            <button v-if="!isTotpVisible(item.id)" class="totp-code masked" @click="revealTotp(item.id)">点按显示</button>
-            <button v-else class="totp-code mono" @click="copy(codes[item.id]?.code, '验证码')">{{ codes[item.id]?.code || '······' }}</button>
-          </article>
-        </section>
+            <section v-if="entry.linkedEmails.length" class="card detail-card">
+              <div class="section-heading"><div class="section-heading__copy"><h2 class="section-title">绑定邮箱</h2><p>与当前登录身份关联的邮箱记录</p></div><span class="section-mark"><AppIcon name="mail" /></span></div>
+              <div v-for="(link, index) in entry.linkedEmails" :key="index" class="info-row"><span class="info-row__icon"><AppIcon name="mail" :size="18" /></span><span class="info-row__copy"><small>{{ link.kind === 'entry' ? '保险箱条目' : '邮箱地址' }}</small><strong>{{ link.kind === 'entry' ? link.labelSnapshot : link.email }}</strong><span v-if="link.kind === 'entry' ? link.emailSnapshot : link.note" class="text-muted text-xs">{{ link.kind === 'entry' ? link.emailSnapshot : link.note }}</span></span><button v-if="link.kind === 'entry'" class="row-action" type="button" @click="router.push(`/vault/${link.entryId}`)">查看<AppIcon name="chevron" :size="16" /></button><button v-else class="row-action" type="button" @click="copy(link.email, '邮箱')"><AppIcon name="copy" :size="17" />复制</button></div>
+            </section>
 
-        <section v-if="entry.linkedEmails.length" class="card stack">
-          <h2 class="section-title">绑定邮箱</h2>
-          <div v-for="(link, index) in entry.linkedEmails" :key="index" class="detail-row">
-            <template v-if="link.kind === 'entry'"><button class="value-button" @click="router.push(`/vault/${link.entryId}`)">{{ link.labelSnapshot }}<span v-if="link.emailSnapshot" class="text-muted"> · {{ link.emailSnapshot }}</span></button></template>
-            <template v-else><button class="value-button" @click="copy(link.email, '邮箱')">{{ link.email }}<span v-if="link.note" class="text-muted"> · {{ link.note }}</span></button></template>
-          </div>
-        </section>
+            <section v-if="references.length" class="card detail-card">
+              <div class="section-heading"><div class="section-heading__copy"><h2 class="section-title">被以下条目引用</h2><p>这些记录保存了指向当前条目的关联</p></div></div>
+              <button v-for="item in references" :key="item.id" class="reference-link" type="button" @click="router.push(`/vault/${item.id}`)"><span class="reference-avatar">{{ item.title.slice(0, 1).toUpperCase() }}</span><strong class="grow">{{ item.title }}</strong><AppIcon name="chevron" :size="17" /></button>
+            </section>
+          </main>
 
-        <section v-if="references.length" class="card stack">
-          <h2 class="section-title">被以下条目引用</h2>
-          <button v-for="item in references" :key="item.id" class="reference-link" @click="router.push(`/vault/${item.id}`)">{{ item.title }}<span>›</span></button>
-        </section>
+          <aside class="detail-aside stack">
+            <section class="card metadata-card">
+              <div class="section-heading"><div class="section-heading__copy"><h2 class="section-title">记录信息</h2><p>此条目的本地活动时间</p></div></div>
+              <dl><div><dt>创建时间</dt><dd>{{ formatTime(entry.createdAt) }}</dd></div><div><dt>更新时间</dt><dd>{{ formatTime(entry.updatedAt) }}</dd></div><div><dt>最近使用</dt><dd>{{ formatTime(entry.lastUsedAt) }}</dd></div></dl>
+            </section>
+            <section class="card local-card"><AppIcon name="shield" :size="23" /><div><strong>内容仅在本机解密</strong><p>离开或锁定后，敏感显示状态会立即清除。</p></div></section>
+            <section class="card danger-zone"><span class="eyebrow danger-text">危险区域</span><h2 class="section-title">删除此条目</h2><p>引用关系将保留文本快照，条目只能通过备份恢复。</p><button class="btn-danger" type="button" @click="removeEntry"><AppIcon name="trash" :size="18" />删除条目</button></section>
+          </aside>
+        </div>
       </template>
     </div>
   </div>
 </template>
 
 <style scoped>
-.entry-hero { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-2) 0 var(--space-3); }
-.hero-avatar { width: 58px; height: 58px; display: grid; place-items: center; border-radius: 18px; background: color-mix(in srgb, var(--color-primary) 16%, var(--color-surface)); color: var(--color-primary); font-size: 24px; font-weight: 800; }
-.favorite { color: var(--color-warning); }
-.detail-row { display: flex; align-items: center; gap: var(--space-3); min-height: 44px; border-bottom: 1px solid var(--color-border); }
-.detail-row:last-child { border-bottom: 0; }
-.detail-row--column { align-items: flex-start; flex-direction: column; padding: var(--space-2) 0; }
-.detail-label { flex: 0 0 76px; color: var(--color-text-muted); font-size: var(--font-size-sm); }
-.value-button { flex: 1; min-width: 0; padding: 10px 0; border: 0; background: transparent; color: var(--color-text); text-align: right; overflow-wrap: anywhere; }
-.value-button:disabled { opacity: 1; }
-.notes { width: 100%; white-space: pre-wrap; line-height: 1.65; user-select: text; }
-.text-right { text-align: right; }
-.justify-end { justify-content: flex-end; }
-.totp-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-sm); background: var(--color-bg-soft); }
-.totp-code { min-height: 54px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-primary); font-size: 28px; font-weight: 800; letter-spacing: 0.15em; }
-.totp-code.masked { color: var(--color-text-secondary); font-size: var(--font-size-md); letter-spacing: normal; }
-.reference-link { min-height: 44px; display: flex; align-items: center; justify-content: space-between; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; color: inherit; }
+.missing-state { min-height: 360px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }.missing-state > span { width: 62px; height: 62px; display: grid; place-items: center; border-radius: 20px; background: var(--color-primary-soft); color: var(--color-primary); }
+.entry-hero { display: flex; align-items: center; gap: 20px; padding: 14px 4px 24px; border-bottom: 1px solid var(--color-border); }.hero-avatar { width: 74px; height: 74px; display: grid; place-items: center; flex: 0 0 auto; border: 1px solid color-mix(in srgb, var(--color-primary) 25%, transparent); border-radius: 24px; background: linear-gradient(145deg, var(--color-primary-soft), var(--color-surface)); color: var(--color-primary); font-size: 29px; font-weight: 850; box-shadow: inset 0 1px 0 var(--color-border-strong); }.hero-copy { display: grid; gap: 8px; }.hero-copy h1 { font-size: clamp(27px, 4vw, 38px); line-height: 1.1; letter-spacing: -.04em; }.eyebrow { color: var(--color-primary); font-size: 12px; font-weight: 800; letter-spacing: .13em; }.favorite-pill { display: inline-flex; align-items: center; gap: 4px; color: var(--color-warning); font-size: 12px; font-weight: 750; }.hero-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--color-text-muted); font-size: 12px; }.hero-meta > span { display: flex; align-items: center; gap: 6px; }.category-dot { width: 7px; height: 7px; border-radius: 50%; }
+.detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 20px; align-items: start; }.detail-card { display: grid; gap: 4px; }.section-mark { width: 40px; height: 40px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 13px; background: var(--color-primary-soft); color: var(--color-primary); }.section-mark--safe { color: var(--color-success); background: color-mix(in srgb, var(--color-success) 11%, transparent); }
+.info-row { min-height: 68px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--color-border); }.info-row:last-child { border-bottom: 0; }.info-row__icon { width: 36px; height: 36px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 11px; background: var(--color-surface-elevated); color: var(--color-text-muted); }.info-row__copy { min-width: 0; flex: 1; display: grid; gap: 3px; overflow-wrap: anywhere; }.info-row__copy small, .notes-block small { color: var(--color-text-muted); font-size: 12px; }.info-row__copy strong { font-size: 13px; font-weight: 650; }.password-mask { letter-spacing: .16em; color: var(--color-text-secondary); }.row-action { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 10px; border: 1px solid var(--color-border); border-radius: 11px; background: transparent; color: var(--color-text-secondary); font-size: 12px; font-weight: 700; cursor: pointer; }.row-action:hover { color: var(--color-primary); border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-border)); }.row-action--icon { width: 44px; padding: 0; }.notes-block { display: grid; grid-template-columns: auto 1fr; gap: 12px; padding: 14px 0 4px; }.notes { margin-top: 6px; white-space: pre-wrap; color: var(--color-text-secondary); font-size: 13px; line-height: 1.7; user-select: text; }
+.totp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }.totp-card { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 15px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-bg-soft); }.totp-card strong { font-size: 13px; }.countdown { color: var(--color-text-muted); font-size: 12px; }.totp-code { min-height: 58px; border: 1px solid var(--color-border); border-radius: 13px; background: var(--color-surface); color: var(--color-primary); font-size: clamp(24px, 4vw, 30px); font-weight: 820; letter-spacing: .13em; cursor: pointer; }.totp-code.masked { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--color-text-secondary); font-family: var(--font-family); font-size: 13px; letter-spacing: normal; }.totp-progress { position: absolute; inset: auto 0 0; height: 3px; background: var(--color-border); }.totp-progress span { display: block; height: 100%; background: var(--color-success); transition: width 1s linear; }
+.reference-link { min-height: 58px; display: flex; align-items: center; gap: 10px; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; color: var(--color-text-muted); text-align: left; cursor: pointer; }.reference-link:last-child { border-bottom: 0; }.reference-link strong { color: var(--color-text); font-size: 13px; }.reference-avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 11px; background: var(--color-primary-soft); color: var(--color-primary); font-size: 12px; font-weight: 800; }
+.metadata-card dl { display: grid; gap: 0; margin: 6px 0 0; }.metadata-card dl div { display: grid; gap: 5px; padding: 12px 0; border-bottom: 1px solid var(--color-border); }.metadata-card dl div:last-child { border-bottom: 0; }.metadata-card dt { color: var(--color-text-muted); font-size: 12px; }.metadata-card dd { margin: 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.5; }.local-card { display: flex; align-items: flex-start; gap: 11px; color: var(--color-success); }.local-card div { display: grid; gap: 4px; }.local-card strong { color: var(--color-text-secondary); font-size: 12px; }.local-card p, .danger-zone p { color: var(--color-text-muted); font-size: 12px; line-height: 1.6; }.danger-zone { display: flex; flex-direction: column; gap: 10px; border-color: color-mix(in srgb, var(--color-danger) 20%, var(--color-border)); }
+@media (max-width: 940px) { .detail-layout { grid-template-columns: 1fr; }.detail-aside { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }.metadata-card { grid-row: span 2; } }
+@media (max-width: 620px) { .entry-hero { align-items: flex-start; }.hero-avatar { width: 58px; height: 58px; border-radius: 18px; font-size: 23px; }.totp-grid, .detail-aside { grid-template-columns: 1fr; }.metadata-card { grid-row: auto; }.info-row { flex-wrap: wrap; padding: 10px 0; }.info-row__copy { flex-basis: calc(100% - 50px); }.row-action { margin-left: 48px; }.row-action + .row-action { margin-left: 0; } }
 </style>

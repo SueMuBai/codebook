@@ -110,7 +110,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   autoLockSeconds: 90,
   clipboardClearSeconds: 30,
   theme: 'auto',
-  totpRevealSeconds: 0,
+  totpRevealSeconds: 10,
   screenProtectionEnabled: true,
 }
 

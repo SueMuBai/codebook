@@ -190,84 +190,59 @@ function cloneEntry(value: CredentialEntry): CredentialEntry {
   <div class="app-page">
     <div class="page-content stack">
       <header class="page-header sticky-header">
-        <button class="btn-ghost" type="button" @click="router.back()">取消</button>
-        <div class="page-header__title"><h1 class="text-xl">{{ isNew ? '新建条目' : '编辑条目' }}</h1></div>
-        <button class="btn-primary" type="button" :disabled="saving" @click="save">{{ saving ? '保存中…' : '保存' }}</button>
+        <button class="btn-icon page-back" type="button" aria-label="取消并返回" @click="router.back()"><AppIcon name="close" /></button>
+        <div class="page-header__title"><h1 class="text-xl">{{ isNew ? '新建条目' : '编辑条目' }}</h1><p class="text-muted text-sm">{{ dirty ? '有尚未保存的修改' : '所有字段均在本机加密保存' }}</p></div>
+        <button class="btn-primary save-button" type="submit" form="entry-form" :disabled="saving"><AppIcon name="check" :size="18" />{{ saving ? '保存中…' : '保存' }}</button>
       </header>
 
-      <form class="card stack" @submit.prevent="save">
-        <h2 class="section-title">基本信息</h2>
-        <label><span class="field-label">标题 *</span><input v-model="draft.title" class="input" maxlength="120" placeholder="网站或服务名称" /></label>
-        <label><span class="field-label">分类</span><select v-model="draft.categoryId" class="select"><option :value="undefined">未分类</option><option v-for="category in vault.categories" :key="category.id" :value="category.id">{{ category.name }}</option></select></label>
-        <label><span class="field-label">网址</span><input v-model="draft.url" class="input" inputmode="url" placeholder="https://example.com" /></label>
-        <label><span class="field-label">账号</span><input v-model="draft.username" class="input" autocomplete="off" placeholder="用户名、手机或邮箱" /></label>
-        <label>
-          <span class="field-label">密码</span>
-          <div class="input-actions">
-            <input v-model="draft.password" class="input" :type="showPassword ? 'text' : 'password'" autocomplete="new-password" />
-            <button class="btn-icon" type="button" @click="showPassword = !showPassword">{{ showPassword ? '藏' : '显' }}</button>
-            <button class="btn-ghost" type="button" @click="draft.password = generatePassword()">生成</button>
+      <form id="entry-form" class="entry-form stack" @submit.prevent="save">
+        <section class="card editor-section">
+          <div class="section-heading"><div class="section-heading__copy"><span class="section-kicker">01</span><h2 class="section-title">基本信息</h2><p>用于识别和登录服务的主要资料</p></div><span class="section-mark"><AppIcon name="key" /></span></div>
+          <div class="form-grid">
+            <label class="span-2"><span class="field-label">标题 *</span><input v-model="draft.title" class="input" maxlength="120" placeholder="网站或服务名称" /></label>
+            <label><span class="field-label">分类</span><select v-model="draft.categoryId" class="select"><option :value="undefined">未分类</option><option v-for="category in vault.categories" :key="category.id" :value="category.id">{{ category.name }}</option></select></label>
+            <label class="favorite-switch"><span><strong>收藏条目</strong><small>在保险箱顶部快速找到</small></span><input v-model="draft.favorite" type="checkbox" /></label>
+            <label class="span-2"><span class="field-label">网址</span><span class="field-with-icon"><AppIcon name="globe" :size="18" /><input v-model="draft.url" class="input" inputmode="url" placeholder="https://example.com" /></span></label>
+            <label><span class="field-label">账号</span><span class="field-with-icon"><AppIcon name="user" :size="18" /><input v-model="draft.username" class="input" autocomplete="off" placeholder="用户名、手机或邮箱" /></span></label>
+            <label><span class="field-label">密码</span><div class="password-input"><input v-model="draft.password" class="input" :type="showPassword ? 'text' : 'password'" autocomplete="new-password" placeholder="输入或生成安全密码" /><button class="input-icon-action" type="button" :aria-label="showPassword ? '隐藏密码' : '显示密码'" @click="showPassword = !showPassword"><AppIcon :name="showPassword ? 'eyeOff' : 'eye'" :size="18" /></button><button class="generate-button" type="button" @click="draft.password = generatePassword()"><AppIcon name="key" :size="16" />生成</button></div></label>
+            <label class="span-2"><span class="field-label">备注</span><textarea v-model="draft.notes" class="textarea" rows="4" placeholder="恢复信息、登录说明等" /></label>
           </div>
-        </label>
-        <label><span class="field-label">备注</span><textarea v-model="draft.notes" class="textarea" rows="4" placeholder="恢复信息、登录说明等" /></label>
-        <label class="switch-row"><span>收藏</span><input v-model="draft.favorite" type="checkbox" /></label>
+        </section>
+
+        <section class="card editor-section">
+          <div class="section-heading"><div class="section-heading__copy"><span class="section-kicker">02</span><h2 class="section-title">自定义字段</h2><p>保存安全问题、恢复码或其它敏感资料</p></div><button class="btn-ghost" type="button" @click="addCustomField"><AppIcon name="plus" :size="17" />添加字段</button></div>
+          <div v-if="draft.customFields.length === 0" class="section-empty"><span><AppIcon name="note" :size="24" /></span><div><strong>暂无自定义字段</strong><p>需要更多资料时，可以添加名称和值。</p></div></div>
+          <div class="nested-list">
+            <article v-for="(field, index) in draft.customFields" :key="field.id" class="nested-card">
+              <div class="nested-card__header"><span class="nested-index mono">{{ String(index + 1).padStart(2, '0') }}</span><strong class="grow">{{ field.name || '未命名字段' }}</strong><div class="nested-actions"><button class="btn-icon" type="button" :disabled="index === 0" aria-label="上移字段" @click="moveItem(draft.customFields, index, -1)"><AppIcon name="up" :size="16" /></button><button class="btn-icon" type="button" :disabled="index === draft.customFields.length - 1" aria-label="下移字段" @click="moveItem(draft.customFields, index, 1)"><AppIcon name="down" :size="16" /></button><button class="btn-icon danger-icon" type="button" aria-label="删除字段" @click="removeCustomField(field.id)"><AppIcon name="trash" :size="16" /></button></div></div>
+              <div class="form-grid"><label><span class="field-label">字段名称</span><input v-model="field.name" class="input" placeholder="例如：恢复代码" /></label><label><span class="field-label">字段内容</span><input v-model="field.value" class="input" :type="field.masked ? 'password' : 'text'" autocomplete="new-password" placeholder="输入字段内容" /></label></div>
+              <label class="compact-switch"><span><AppIcon :name="field.masked ? 'eyeOff' : 'eye'" :size="17" />遮罩显示</span><input v-model="field.masked" type="checkbox" /></label>
+            </article>
+          </div>
+        </section>
+
+        <section class="card editor-section">
+          <div class="section-heading"><div class="section-heading__copy"><span class="section-kicker">03</span><h2 class="section-title">2FA（TOTP）</h2><p>推荐扫描服务提供的二维码，也支持 URI 与手工参数</p></div><button class="btn-primary" type="button" @click="showScanner = true"><AppIcon name="qr" :size="18" />扫描二维码</button></div>
+          <div class="notice-panel"><AppIcon name="shield" :size="19" /><span class="text-sm">二维码和密钥只在本机解析，不会上传。添加后仍需保存整个条目。</span></div>
+          <div class="nested-list">
+            <article v-for="(totp, index) in draft.totp" :key="totp.id" class="nested-card">
+              <div class="nested-card__header"><span class="totp-mark"><AppIcon name="shield" :size="18" /></span><strong class="grow">{{ totp.label || totp.issuer || totp.accountName || `TOTP ${index + 1}` }}</strong><div class="nested-actions"><button class="btn-icon" type="button" :disabled="index === 0" aria-label="上移 TOTP" @click="moveItem(draft.totp, index, -1)"><AppIcon name="up" :size="16" /></button><button class="btn-icon" type="button" :disabled="index === draft.totp.length - 1" aria-label="下移 TOTP" @click="moveItem(draft.totp, index, 1)"><AppIcon name="down" :size="16" /></button><button class="btn-icon danger-icon" type="button" aria-label="删除 TOTP" @click="draft.totp.splice(index, 1)"><AppIcon name="trash" :size="16" /></button></div></div>
+              <div class="form-grid"><label><span class="field-label">标签</span><input v-model="totp.label" class="input" placeholder="例如：主账号" /></label><label><span class="field-label">Issuer</span><input v-model="totp.issuer" class="input" placeholder="服务提供方" /></label><label><span class="field-label">账号名</span><input v-model="totp.accountName" class="input" placeholder="对应账号" /></label><label><span class="field-label">Base32 Secret</span><input v-model="totp.secret" class="input mono" type="password" autocomplete="new-password" placeholder="密钥" /></label></div>
+              <div class="parameter-grid"><label><span class="field-label">位数</span><select v-model.number="totp.digits" class="select"><option :value="6">6 位</option><option :value="7">7 位</option><option :value="8">8 位</option></select></label><label><span class="field-label">周期（秒）</span><input v-model.number="totp.period" class="input" type="number" min="1" max="300" /></label><label><span class="field-label">算法</span><select v-model="totp.algorithm" class="select"><option value="SHA1">SHA-1</option><option value="SHA256">SHA-256</option><option value="SHA512">SHA-512</option></select></label></div>
+            </article>
+          </div>
+          <div class="add-methods">
+            <div class="method-card"><div class="method-card__title"><span><AppIcon name="qr" :size="18" /></span><div><strong>粘贴 otpauth URI</strong><small>从其它验证器或服务复制</small></div></div><textarea v-model="totpUri" class="textarea mono" rows="2" placeholder="otpauth://totp/..." /><button class="btn-ghost" type="button" @click="addTotpUri">解析并添加</button></div>
+            <div class="method-card"><div class="method-card__title"><span><AppIcon name="key" :size="18" /></span><div><strong>手工添加</strong><small>使用服务提供的 Base32 密钥</small></div></div><label><span class="field-label">Base32 Secret</span><input v-model="manualSecret" class="input mono" type="password" autocomplete="new-password" placeholder="输入密钥" /></label><div class="form-grid"><label><span class="field-label">Issuer</span><input v-model="manualIssuer" class="input" placeholder="服务提供方" /></label><label><span class="field-label">账号名</span><input v-model="manualAccount" class="input" placeholder="对应账号" /></label></div><label><span class="field-label">标签</span><input v-model="manualLabel" class="input" placeholder="例如：主账号" /></label><div class="parameter-grid"><select v-model.number="manualDigits" class="select" aria-label="TOTP 位数"><option :value="6">6 位</option><option :value="7">7 位</option><option :value="8">8 位</option></select><input v-model.number="manualPeriod" class="input" aria-label="TOTP 周期" type="number" min="1" max="300" /><select v-model="manualAlgorithm" class="select" aria-label="TOTP 算法"><option value="SHA1">SHA-1</option><option value="SHA256">SHA-256</option><option value="SHA512">SHA-512</option></select></div><button class="btn-ghost" type="button" @click="addTotpManual">添加 TOTP</button></div>
+          </div>
+        </section>
+
+        <section class="card editor-section">
+          <div class="section-heading"><div class="section-heading__copy"><span class="section-kicker">04</span><h2 class="section-title">绑定其它邮箱</h2><p>记录登录身份与恢复邮箱之间的关系</p></div><span class="section-mark"><AppIcon name="mail" /></span></div>
+          <div v-if="draft.linkedEmails.length" class="linked-list"><div v-for="(link, index) in draft.linkedEmails" :key="`${link.kind}-${index}`" class="linked-row"><span class="linked-icon"><AppIcon name="mail" :size="18" /></span><span class="grow"><strong>{{ link.kind === 'entry' ? link.labelSnapshot : link.email }}</strong><small v-if="link.kind === 'entry' ? link.emailSnapshot : link.note">{{ link.kind === 'entry' ? link.emailSnapshot : link.note }}</small></span><button class="btn-icon danger-icon" type="button" aria-label="移除邮箱关联" @click="draft.linkedEmails.splice(index, 1)"><AppIcon name="trash" :size="16" /></button></div></div>
+          <div class="link-builder"><div class="link-tabs"><button class="chip" type="button" :class="{ 'is-active': linkMode === 'text' }" @click="linkMode = 'text'"><AppIcon name="mail" :size="16" />手输邮箱</button><button class="chip" type="button" :class="{ 'is-active': linkMode === 'entry' }" @click="linkMode = 'entry'"><AppIcon name="vault" :size="16" />选择库内条目</button></div><div class="form-grid"><template v-if="linkMode === 'text'"><label><span class="field-label">邮箱地址</span><input v-model="linkEmail" class="input" inputmode="email" placeholder="foo@example.com" /></label><label><span class="field-label">备注（可选）</span><input v-model="linkNote" class="input" placeholder="例如：主要恢复邮箱" /></label></template><template v-else><label><span class="field-label">搜索条目</span><input v-model="linkQuery" class="input" placeholder="搜索标题、账号、网址或备注" /></label><label><span class="field-label">选择条目</span><select v-model="selectedEntryId" class="select"><option value="">选择条目</option><option v-for="entry in linkCandidates" :key="entry.id" :value="entry.id">{{ entry.title }}{{ entry.username ? ` · ${entry.username}` : '' }}</option></select></label></template></div><button class="btn-ghost add-link-button" type="button" @click="addLinkedEmail"><AppIcon name="plus" :size="17" />添加关联</button></div>
+        </section>
       </form>
-
-      <section class="card stack">
-        <div class="split"><h2 class="section-title">自定义字段</h2><button class="btn-ghost" type="button" @click="addCustomField">添加字段</button></div>
-        <p v-if="draft.customFields.length === 0" class="text-muted text-sm">可保存安全问题、恢复码或其它敏感信息。</p>
-        <div v-for="(field, index) in draft.customFields" :key="field.id" class="nested-card stack">
-          <div class="cluster">
-            <button class="btn-icon" :disabled="index === 0" @click="moveItem(draft.customFields, index, -1)">↑</button>
-            <button class="btn-icon" :disabled="index === draft.customFields.length - 1" @click="moveItem(draft.customFields, index, 1)">↓</button>
-            <button class="btn-danger" @click="removeCustomField(field.id)">删除</button>
-          </div>
-          <input v-model="field.name" class="input" placeholder="字段名称" />
-          <input v-model="field.value" class="input" :type="field.masked ? 'password' : 'text'" placeholder="字段内容" />
-          <label class="switch-row"><span>遮罩显示</span><input v-model="field.masked" type="checkbox" /></label>
-        </div>
-      </section>
-
-      <section class="card stack">
-        <div class="split"><h2 class="section-title">2FA（TOTP）</h2><button class="btn-primary" type="button" @click="showScanner = true">扫描二维码</button></div>
-        <div v-for="(totp, index) in draft.totp" :key="totp.id" class="nested-card stack">
-          <div class="split">
-            <strong>{{ totp.label || totp.issuer || totp.accountName || `TOTP ${index + 1}` }}</strong>
-            <div class="cluster"><button class="btn-icon" :disabled="index === 0" @click="moveItem(draft.totp, index, -1)">↑</button><button class="btn-icon" :disabled="index === draft.totp.length - 1" @click="moveItem(draft.totp, index, 1)">↓</button><button class="btn-danger" @click="draft.totp.splice(index, 1)">删除</button></div>
-          </div>
-          <input v-model="totp.label" class="input" placeholder="标签" />
-          <div class="grid-two"><input v-model="totp.issuer" class="input" placeholder="Issuer" /><input v-model="totp.accountName" class="input" placeholder="账号名" /></div>
-          <input v-model="totp.secret" class="input mono" type="password" placeholder="Base32 Secret" />
-          <div class="grid-three"><select v-model.number="totp.digits" class="select"><option :value="6">6 位</option><option :value="7">7 位</option><option :value="8">8 位</option></select><input v-model.number="totp.period" class="input" type="number" min="1" max="300" /><select v-model="totp.algorithm" class="select"><option value="SHA1">SHA-1</option><option value="SHA256">SHA-256</option><option value="SHA512">SHA-512</option></select></div>
-        </div>
-
-        <div class="nested-card stack">
-          <h3 class="text-sm">粘贴 otpauth URI</h3>
-          <textarea v-model="totpUri" class="textarea mono" rows="2" placeholder="otpauth://totp/..." />
-          <button class="btn-ghost" type="button" @click="addTotpUri">解析并添加</button>
-        </div>
-
-        <div class="nested-card stack">
-          <h3 class="text-sm">手工添加</h3>
-          <input v-model="manualSecret" class="input mono" type="password" placeholder="Base32 Secret" />
-          <div class="grid-two"><input v-model="manualIssuer" class="input" placeholder="Issuer" /><input v-model="manualAccount" class="input" placeholder="账号名" /></div>
-          <input v-model="manualLabel" class="input" placeholder="标签" />
-          <div class="grid-three"><select v-model.number="manualDigits" class="select"><option :value="6">6 位</option><option :value="7">7 位</option><option :value="8">8 位</option></select><input v-model.number="manualPeriod" class="input" type="number" min="1" max="300" /><select v-model="manualAlgorithm" class="select"><option value="SHA1">SHA-1</option><option value="SHA256">SHA-256</option><option value="SHA512">SHA-512</option></select></div>
-          <button class="btn-ghost" type="button" @click="addTotpManual">添加 TOTP</button>
-        </div>
-      </section>
-
-      <section class="card stack">
-        <h2 class="section-title">绑定其它邮箱</h2>
-        <div v-for="(link, index) in draft.linkedEmails" :key="`${link.kind}-${index}`" class="linked-row">
-          <span class="grow">{{ link.kind === 'entry' ? `${link.labelSnapshot}${link.emailSnapshot ? ` · ${link.emailSnapshot}` : ''}` : link.email }}</span>
-          <button class="btn-danger" @click="draft.linkedEmails.splice(index, 1)">移除</button>
-        </div>
-        <div class="cluster"><button class="chip" :class="{ 'is-active': linkMode === 'text' }" @click="linkMode = 'text'">手输邮箱</button><button class="chip" :class="{ 'is-active': linkMode === 'entry' }" @click="linkMode = 'entry'">选择库内条目</button></div>
-        <template v-if="linkMode === 'text'"><input v-model="linkEmail" class="input" inputmode="email" placeholder="foo@example.com" /><input v-model="linkNote" class="input" placeholder="备注（可选）" /></template>
-        <template v-else><input v-model="linkQuery" class="input" placeholder="搜索标题、账号、网址或备注" /><select v-model="selectedEntryId" class="select"><option value="">选择条目</option><option v-for="entry in linkCandidates" :key="entry.id" :value="entry.id">{{ entry.title }}{{ entry.username ? ` · ${entry.username}` : '' }}</option></select></template>
-        <button class="btn-ghost" type="button" @click="addLinkedEmail">添加关联</button>
-      </section>
 
       <TotpScanSheet :show="showScanner" :account-name="draft.username" @close="showScanner = false" @confirm="addTotp" />
     </div>
@@ -275,13 +250,14 @@ function cloneEntry(value: CredentialEntry): CredentialEntry {
 </template>
 
 <style scoped>
-.sticky-header { position: sticky; top: calc(-1 * var(--space-4)); z-index: 20; padding: var(--space-3) 0; background: color-mix(in srgb, var(--color-bg) 92%, transparent); backdrop-filter: blur(14px); }
-.input-actions { display: flex; gap: var(--space-2); }.input-actions .input { flex: 1; min-width: 0; }
-.switch-row { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.switch-row input { width: 22px; height: 22px; accent-color: var(--color-primary); }
-.nested-card { padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg-soft); }
-.grid-two { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
-.grid-three { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
-.linked-row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border); }
-@media (max-width: 560px) { .grid-two, .grid-three { grid-template-columns: 1fr; } }
+.sticky-header { position: sticky; top: -16px; z-index: 20; padding: 13px 0; background: color-mix(in srgb, var(--color-bg) 90%, transparent); backdrop-filter: blur(18px); }.save-button { min-width: 110px; }
+.editor-section { display: grid; gap: 20px; }.section-kicker { color: var(--color-primary); font-family: var(--font-mono); font-size: 12px; font-weight: 800; letter-spacing: .12em; }.section-mark { width: 44px; height: 44px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 14px; background: var(--color-primary-soft); color: var(--color-primary); }.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }.span-2 { grid-column: 1 / -1; }.field-with-icon { position: relative; display: block; }.field-with-icon > .app-icon { position: absolute; z-index: 1; left: 14px; top: 50%; transform: translateY(-50%); color: var(--color-text-muted); }.field-with-icon .input { padding-left: 43px; }
+.favorite-switch, .compact-switch { min-height: var(--control-height); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 13px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-bg-soft); }.favorite-switch span { display: grid; gap: 2px; }.favorite-switch strong { font-size: 12px; }.favorite-switch small { color: var(--color-text-muted); font-size: 12px; }.favorite-switch input, .compact-switch input { width: 22px; height: 22px; accent-color: var(--color-primary); }
+.password-input { position: relative; display: flex; gap: 7px; }.password-input .input { min-width: 0; padding-right: 46px; }.input-icon-action { position: absolute; right: 83px; top: 3px; width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: transparent; color: var(--color-text-muted); cursor: pointer; }.generate-button { min-width: 76px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-surface-elevated); color: var(--color-primary); font-size: 12px; font-weight: 750; cursor: pointer; }
+.section-empty { min-height: 96px; display: flex; align-items: center; justify-content: center; gap: 13px; padding: 18px; border: 1px dashed var(--color-border-strong); border-radius: 15px; color: var(--color-text-secondary); }.section-empty > span { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 14px; background: var(--color-primary-soft); color: var(--color-primary); }.section-empty div { display: grid; gap: 4px; }.section-empty strong { font-size: 13px; }.section-empty p { color: var(--color-text-muted); font-size: 12px; }
+.nested-list { display: grid; gap: 12px; }.nested-card { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-bg-soft); }.nested-card__header { display: flex; align-items: center; gap: 10px; }.nested-index { color: var(--color-text-muted); font-size: 12px; }.nested-card__header strong { font-size: 13px; }.nested-actions { display: flex; gap: 5px; }.nested-actions .btn-icon { width: 44px; min-width: 44px; min-height: 44px; }.danger-icon { color: var(--color-danger); }.compact-switch { justify-self: start; min-height: 44px; padding-block: 5px; color: var(--color-text-secondary); font-size: 12px; }.compact-switch span { display: flex; align-items: center; gap: 7px; }.compact-switch input { width: 22px; height: 22px; }.totp-mark { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 11px; background: color-mix(in srgb, var(--color-success) 11%, transparent); color: var(--color-success); }
+.parameter-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.add-methods { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.method-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px dashed var(--color-border-strong); border-radius: 16px; background: color-mix(in srgb, var(--color-bg-soft) 60%, transparent); }.method-card__title { display: flex; align-items: center; gap: 10px; }.method-card__title > span { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 11px; background: var(--color-primary-soft); color: var(--color-primary); }.method-card__title div { display: grid; gap: 2px; }.method-card__title strong { font-size: 12px; }.method-card__title small { color: var(--color-text-muted); font-size: 12px; }.method-card .btn-ghost { align-self: flex-start; }
+.linked-list { display: grid; }.linked-row { min-height: 60px; display: flex; align-items: center; gap: 11px; padding: 8px 0; border-bottom: 1px solid var(--color-border); }.linked-row:last-child { border-bottom: 0; }.linked-icon { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; background: var(--color-primary-soft); color: var(--color-primary); }.linked-row .grow { display: grid; gap: 3px; }.linked-row strong { font-size: 12px; }.linked-row small { color: var(--color-text-muted); font-size: 12px; }.link-builder { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-bg-soft); }.link-tabs { display: flex; gap: 7px; flex-wrap: wrap; }.add-link-button { justify-self: start; }
+@media (max-width: 760px) { .add-methods { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .sticky-header { top: -16px; }.page-header__title p { display: none; }.save-button { min-width: auto; padding-inline: 12px; }.form-grid, .parameter-grid { grid-template-columns: 1fr; }.span-2 { grid-column: auto; }.section-heading { align-items: center; }.section-heading > .btn-primary, .section-heading > .btn-ghost { flex: 0 0 auto; padding-inline: 10px; }.nested-card { padding: 13px; }.nested-card__header { align-items: flex-start; flex-wrap: wrap; }.nested-card__header .grow { padding-top: 9px; }.nested-actions { width: 100%; justify-content: flex-end; }.method-card .btn-ghost, .add-link-button { width: 100%; }.password-input { display: grid; grid-template-columns: 1fr auto; }.password-input .input { grid-column: 1 / -1; }.input-icon-action { right: 8px; }.generate-button { min-height: 44px; grid-column: 2; }.favorite-switch { align-self: end; } }
 </style>

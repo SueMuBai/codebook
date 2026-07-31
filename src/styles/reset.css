@@ -1,16 +1,27 @@
 *, *::before, *::after { box-sizing: border-box; }
-html, body, #app { height: 100%; }
+html, body, #app { width: 100%; min-width: 0; height: 100%; }
+html { background: var(--color-bg); }
 body {
   margin: 0;
+  overflow: hidden;
   font-family: var(--font-family);
   font-size: var(--font-size-md);
   color: var(--color-text);
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
 }
 button, input, textarea, select { font: inherit; color: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
+button, a, input, select, textarea { outline: none; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 28%, transparent);
+}
 a { color: var(--color-primary); text-decoration: none; }
-img { max-width: 100%; display: block; }
-ul { margin: 0; padding: 0; list-style: none; }
+img, svg { display: block; max-width: 100%; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+::selection { color: var(--color-text); background: color-mix(in srgb, var(--color-primary) 35%, transparent); }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 99px; background: var(--color-border-strong); background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }

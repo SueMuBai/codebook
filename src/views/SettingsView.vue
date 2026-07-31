@@ -28,7 +28,7 @@ async function toggleScreenProtection() {
         title: '关闭屏幕保护？',
         message: '关闭后允许截屏，并可能在最近任务中显示敏感内容。',
         confirmButtonText: '仍要关闭',
-        confirmButtonColor: '#d84f61',
+        confirmButtonColor: '#e11d48',
       })
     } catch {
       return
@@ -53,7 +53,7 @@ async function clearAll() {
       title: '清空所有本地数据',
       message: '保险箱、设置和密钥都会被删除。此操作无法撤销，请先导出加密备份。',
       confirmButtonText: '永久清空',
-      confirmButtonColor: '#d84f61',
+      confirmButtonColor: '#e11d48',
     })
     await session.resetLocalData()
     await router.replace('/onboarding')
@@ -69,42 +69,91 @@ async function clearAll() {
       <header class="page-header">
         <div class="page-header__title">
           <h1 class="text-xl">设置</h1>
-          <p class="text-muted text-sm">{{ APP_NAME }} v{{ APP_VERSION }}</p>
+          <p class="text-muted text-sm">管理保险箱、安全策略与显示偏好</p>
         </div>
       </header>
 
-      <section class="card settings-card">
-        <button class="settings-link" @click="router.push('/categories')"><span>分类管理</span><span>›</span></button>
-        <button class="settings-link" @click="router.push('/settings/import-export')"><span>导入与导出</span><span>›</span></button>
-        <button class="settings-link" @click="router.push('/settings/master-password')"><span>修改主密码</span><span>›</span></button>
-      </section>
+      <div class="settings-grid">
+        <div class="settings-main stack">
+          <section class="card settings-section">
+            <div class="section-heading">
+              <div class="section-heading__copy"><h2 class="section-title">保险箱管理</h2><p>整理分类、迁移数据或更新访问凭据</p></div>
+              <span class="section-icon"><AppIcon name="vault" /></span>
+            </div>
+            <button class="settings-link" type="button" @click="router.push('/categories')"><span class="settings-link__icon"><AppIcon name="folder" /></span><span class="settings-link__copy"><strong>分类管理</strong><small>创建、排序和调整条目分类</small></span><AppIcon name="chevron" :size="18" /></button>
+            <button class="settings-link" type="button" @click="router.push('/settings/import-export')"><span class="settings-link__icon"><AppIcon name="download" /></span><span class="settings-link__copy"><strong>导入与导出</strong><small>加密备份与 CSV 数据迁移</small></span><AppIcon name="chevron" :size="18" /></button>
+            <button class="settings-link" type="button" @click="router.push('/settings/master-password')"><span class="settings-link__icon"><AppIcon name="key" /></span><span class="settings-link__copy"><strong>修改主密码</strong><small>重新保护本机的数据密钥</small></span><AppIcon name="chevron" :size="18" /></button>
+          </section>
 
-      <section class="card stack">
-        <h2 class="section-title">安全与显示</h2>
-        <label class="setting-field"><span>自动锁定</span><select class="select compact" :value="settingsStore.settings.autoLockSeconds" @change="setNumber('autoLockSeconds', $event)"><option :value="0">关闭</option><option :value="30">30 秒</option><option :value="60">60 秒</option><option :value="90">90 秒</option><option :value="180">3 分钟</option><option :value="300">5 分钟</option></select></label>
-        <label class="setting-field"><span>剪贴板清除</span><select class="select compact" :value="settingsStore.settings.clipboardClearSeconds" @change="setNumber('clipboardClearSeconds', $event)"><option :value="0">关闭</option><option :value="15">15 秒</option><option :value="30">30 秒</option><option :value="60">60 秒</option></select></label>
-        <label class="setting-field"><span>TOTP 显示</span><select class="select compact" :value="settingsStore.settings.totpRevealSeconds" @change="setNumber('totpRevealSeconds', $event)"><option :value="0">持续显示</option><option :value="10">10 秒</option><option :value="30">30 秒</option><option :value="60">60 秒</option></select></label>
-        <label class="setting-field"><span>主题</span><select class="select compact" :value="settingsStore.settings.theme" @change="setTheme"><option value="auto">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>
-        <button v-if="isNative" class="setting-field button-field" @click="toggleScreenProtection"><span>Android 屏幕保护</span><span :class="settingsStore.settings.screenProtectionEnabled ? 'success-text' : 'danger-text'">{{ settingsStore.settings.screenProtectionEnabled ? '已开启' : '已关闭' }}</span></button>
-      </section>
+          <section class="card settings-section">
+            <div class="section-heading"><div class="section-heading__copy"><h2 class="section-title">安全与隐私</h2><p>控制敏感信息在设备上的停留时间</p></div><span class="section-icon section-icon--safe"><AppIcon name="shield" /></span></div>
+            <label class="setting-field"><span class="setting-field__copy"><AppIcon name="timer" /><span><strong>自动锁定</strong><small>无操作后清除内存中的解密密钥</small></span></span><select class="select compact" aria-label="自动锁定" :value="settingsStore.settings.autoLockSeconds" @change="setNumber('autoLockSeconds', $event)"><option :value="0">关闭</option><option :value="30">30 秒</option><option :value="60">60 秒</option><option :value="90">90 秒</option><option :value="180">3 分钟</option><option :value="300">5 分钟</option></select></label>
+            <label class="setting-field"><span class="setting-field__copy"><AppIcon name="clipboard" /><span><strong>剪贴板清除</strong><small>复制敏感内容后自动覆盖剪贴板</small></span></span><select class="select compact" aria-label="剪贴板清除" :value="settingsStore.settings.clipboardClearSeconds" @change="setNumber('clipboardClearSeconds', $event)"><option :value="0">关闭</option><option :value="15">15 秒</option><option :value="30">30 秒</option><option :value="60">60 秒</option></select></label>
+            <label class="setting-field"><span class="setting-field__copy"><AppIcon name="eye" /><span><strong>TOTP 显示</strong><small>验证码显示后自动隐藏</small></span></span><select class="select compact" aria-label="TOTP 显示" :value="settingsStore.settings.totpRevealSeconds" @change="setNumber('totpRevealSeconds', $event)"><option :value="0">持续显示</option><option :value="10">10 秒</option><option :value="30">30 秒</option><option :value="60">60 秒</option></select></label>
+            <button v-if="isNative" class="setting-field button-field" type="button" @click="toggleScreenProtection"><span class="setting-field__copy"><AppIcon name="shield" /><span><strong>Android 屏幕保护</strong><small>阻止截屏和最近任务预览</small></span></span><span class="status-pill" :class="{ 'status-pill--danger': !settingsStore.settings.screenProtectionEnabled }">{{ settingsStore.settings.screenProtectionEnabled ? '已开启' : '已关闭' }}</span></button>
+          </section>
 
-      <section class="card settings-card">
-        <button class="settings-link" @click="lockNow"><span>立即锁定</span><span class="text-muted">清除内存密钥</span></button>
-        <button class="settings-link danger-text" @click="clearAll"><span>清空本地数据</span><span>›</span></button>
-      </section>
+          <section class="card settings-section">
+            <div class="section-heading"><div class="section-heading__copy"><h2 class="section-title">显示</h2><p>选择最适合当前环境的界面主题</p></div><span class="section-icon"><AppIcon name="palette" /></span></div>
+            <label class="setting-field"><span class="setting-field__copy"><AppIcon name="palette" /><span><strong>主题</strong><small>浅色、深色或跟随系统设置</small></span></span><select class="select compact" aria-label="主题" :value="settingsStore.settings.theme" @change="setTheme"><option value="auto">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>
+          </section>
+        </div>
 
-      <p class="text-muted text-sm about">本地加密 · 无账号 · 无云同步 · 生物识别暂未开放</p>
+        <aside class="settings-aside stack">
+          <section class="card lock-card">
+            <span class="lock-card__icon"><AppIcon name="lock" :size="24" /></span>
+            <div><h2 class="section-title">离开设备？</h2><p class="text-muted text-sm">立即清除会话密钥，下一次访问需要主密码。</p></div>
+            <button class="btn-primary" type="button" @click="lockNow"><AppIcon name="lock" :size="18" />立即锁定</button>
+          </section>
+
+          <section class="card danger-zone">
+            <span class="eyebrow danger-text">危险区域</span>
+            <h2 class="section-title">清空本地数据</h2>
+            <p class="text-muted text-sm">永久删除保险箱、设置和本机密钥。请先导出加密备份。</p>
+            <button class="btn-danger" type="button" @click="clearAll"><AppIcon name="trash" :size="18" />清空本地数据</button>
+          </section>
+
+          <section class="about-card">
+            <span class="app-brand__mark about-mark">密</span>
+            <div><strong>{{ APP_NAME }}</strong><p>codebook · v{{ APP_VERSION }}</p></div>
+            <p class="about-copy">本地加密 · 无账号 · 无云同步<br>生物识别暂未开放</p>
+          </section>
+        </aside>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.settings-card { padding: 0; overflow: hidden; }
-.settings-link { width: 100%; min-height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 var(--space-4); border: 0; border-bottom: 1px solid var(--color-border); background: transparent; color: inherit; text-align: left; }
+.settings-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+.settings-section { padding-bottom: 4px; overflow: hidden; }
+.section-icon { width: 40px; height: 40px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 13px; background: var(--color-primary-soft); color: var(--color-primary); }
+.section-icon--safe { color: var(--color-success); background: color-mix(in srgb, var(--color-success) 12%, transparent); }
+.settings-link { width: 100%; min-height: 70px; display: flex; align-items: center; gap: 12px; padding: 10px 0; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; color: var(--color-text-muted); text-align: left; cursor: pointer; }
 .settings-link:last-child { border-bottom: 0; }
-.setting-field { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 50px; border-bottom: 1px solid var(--color-border); }
+.settings-link:hover { color: var(--color-primary); }
+.settings-link__icon { width: 38px; height: 38px; display: grid; place-items: center; flex: 0 0 auto; border: 1px solid var(--color-border); border-radius: 12px; color: var(--color-text-secondary); background: var(--color-surface-elevated); }
+.settings-link__copy { flex: 1; display: grid; gap: 3px; color: var(--color-text); }
+.settings-link__copy strong, .setting-field strong { font-size: 14px; }
+.settings-link__copy small, .setting-field small { color: var(--color-text-muted); font-size: 12px; line-height: 1.45; }
+.setting-field { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 68px; border-bottom: 1px solid var(--color-border); }
 .setting-field:last-child { border-bottom: 0; }
-.compact { width: min(180px, 52%); }
-.button-field { width: 100%; border-left: 0; border-right: 0; border-top: 0; background: transparent; color: inherit; padding: 0; }
-.about { text-align: center; padding: var(--space-3); }
+.setting-field__copy { min-width: 0; display: flex; align-items: center; gap: 12px; }
+.setting-field__copy > .app-icon { flex: 0 0 auto; color: var(--color-text-muted); }
+.setting-field__copy > span { display: grid; gap: 3px; }
+.compact { width: 156px; min-height: 44px; flex: 0 0 auto; padding-block: 7px; }
+.button-field { width: 100%; border-left: 0; border-right: 0; border-top: 0; background: transparent; color: inherit; padding: 0; cursor: pointer; }
+.status-pill--danger { color: var(--color-danger); background: color-mix(in srgb, var(--color-danger) 10%, transparent); }
+.lock-card, .danger-zone { display: flex; flex-direction: column; gap: 13px; }
+.lock-card__icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 16px; background: var(--color-primary-soft); color: var(--color-primary); }
+.lock-card p, .danger-zone p { margin-top: 5px; line-height: 1.6; }
+.danger-zone { border-color: color-mix(in srgb, var(--color-danger) 20%, var(--color-border)); }
+.eyebrow { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.about-card { display: grid; grid-template-columns: auto 1fr; gap: 11px; align-items: center; padding: 8px 5px; color: var(--color-text-secondary); }
+.about-mark { width: 38px; height: 38px; border-radius: 12px; font-size: 16px; }
+.about-card strong { font-size: 14px; }
+.about-card p { margin: 2px 0 0; color: var(--color-text-muted); font-size: 12px; }
+.about-card .about-copy { grid-column: 1 / -1; line-height: 1.65; }
+@media (max-width: 980px) { .settings-grid { grid-template-columns: 1fr; } .settings-aside { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } .about-card { grid-column: 1 / -1; } }
+@media (max-width: 560px) { .settings-aside { display: flex; } .setting-field { align-items: flex-start; flex-direction: column; padding: 14px 0; } .compact { width: 100%; } .button-field { align-items: center; flex-direction: row; } .button-field .setting-field__copy { align-items: flex-start; } }
 </style>

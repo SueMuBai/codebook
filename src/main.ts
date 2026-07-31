@@ -16,6 +16,7 @@ import {
 import 'vant/lib/index.css'
 
 import App from './App.vue'
+import AppIcon from './components/ui/AppIcon.vue'
 import router from './app/router'
 import { setupNativeLifecycle } from './app/lifecycle'
 import './styles/index.css'
@@ -35,6 +36,7 @@ app.use(NavBar)
 app.use(Search)
 app.use(Switch)
 app.use(Tag)
+app.component('AppIcon', AppIcon)
 
 // make toast helper available without importing plugin side effects in every file
 app.config.globalProperties.$toast = showToast

@@ -541,7 +541,18 @@ npx cap sync android
 
 浏览器验收使用 Windows Chrome 150（Playwright 经 CDP 驱动），在 390×844 与 1280×900 视口完成：初始化/解锁、分类、完整条目保存与重载、自定义字段遮罩、多 TOTP、邮箱关联、搜索与分类筛选、主题、TOTP 10 秒重新遮罩、主密码修改、立即锁定、错误密码拒绝、加密备份失败不覆盖与成功往返、CSV 风险确认/预览/导入统计。错误备份密码后原条目仍存在；正确备份密码触发替换确认，恢复完成后强制回到锁屏；CSV 实测为有效 1 条、跳过 1 行、失败 1 条，确认后只新增该有效条目；修改主密码后旧密码被拒绝，新密码解锁后两条记录均完整。引导、解锁、主密码修改、条目编辑和导入页面的密码输入均位于语义化 `form` 中。验收结束时控制台为 0 error、0 warning。
 
-可复核浏览器证据位于 `output/playwright/revalidation/`：`encrypted-backup.json` 是实测下载的 v2 加密备份，`desktop-vault-1280x900.png` 是桌面视口结果，`.playwright-cli/traces/trace-1785431519085.trace` 及配套 network/resources 保存了完整交互轨迹与网络证据。
+可复核浏览器证据位于 `output/playwright/revalidation/`：`encrypted-backup.json` 是实测下载的 v2 加密备份，`desktop-vault-1280x900.png` 是桌面视口结果。临时 Playwright 会话、控制台日志和追踪文件不属于发布产物，也不提交到仓库。
+
+#### 8.3.1 UI 整体重构与复核（2026-07-31）
+
+- 颜色与视觉权威来源更新为参考目录 `design-review/index.html` 及 `screens.js` 的最新可运行版本；旧 `design-system.md` 中的靛蓝色值不再作为实现依据。
+- 品牌统一为中文“密语”、英文 `codebook`，视觉方向调整为“薄荷绿 × 浅天蓝”：深色主背景 `#0f1614`、主色 `#2dd4bf`、辅助色 `#7dd3fc`；浅色主背景 `#f0f9f6`、主色 `#14b8a6`、辅助色 `#38bdf8`。
+- 引导、锁屏、保险箱、条目详情/编辑、分类、设置、主密码、导入导出和 TOTP 扫描确认层全部重新设计；业务、加密与持久化行为保持不变。
+- 移动端使用底部导航，桌面端使用固定侧边栏；390×844 与 1280×900 下逐路由检查保险箱、详情、编辑、分类、设置、导入导出和主密码页面，文档宽度均等于视口宽度，无横向溢出。
+- 密码输入提供显示/隐藏按钮，并补齐浏览器凭据表单语义；条目编辑使用单一语义化表单，顶部保存按钮通过 `form` 属性提交。TOTP 默认显示 10 秒后重新遮罩，锁定或离开页面立即清除显示状态。
+- TOTP 扫描层支持初始焦点、焦点循环和 Escape 关闭；Android 扫描阶段使用透明背景以显示原生相机预览。辅助文字不小于 12px，交互目标不小于 44px。
+- UI 需求基线见 `docs/UI_REQUIREMENTS.md`；浏览器复核截图位于本地 `output/playwright/`，该目录作为临时验收产物被 Git 忽略。
+- 本轮质量基线：TypeScript 检查通过，ESLint 0 warning，20 个测试文件共 62 个用例通过，Vite production build 与 `npx cap sync android` 通过；浏览器核心路由无脚本错误或横向溢出。Linux JDK 21 + Android SDK 35 环境下 `assembleDebug` 通过，Debug APK 为 48,101,411 字节，SHA-256 为 `82e90206a1ab3f1b0f187449a9236141a1883836a5143bdcfc11daefc70f8993`。
 
 Android 原生门槛分为三层：Gradle `assembleDebug` 已通过；API 36 模拟器核心路径已通过；8.2.2 的真实二维码、权限矩阵、物理截屏/最近任务和系统分享仍必须在真机完成，模拟器或编译成功不能替代真机结论。
 

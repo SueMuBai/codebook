@@ -1,9 +1,12 @@
 h1, h2, h3, h4, p { margin: 0; }
+h1, h2, h3, h4 { text-wrap: balance; }
+p { text-wrap: pretty; }
 .text-muted { color: var(--color-text-muted); }
 .text-secondary { color: var(--color-text-secondary); }
 .text-sm { font-size: var(--font-size-sm); }
 .text-xs { font-size: var(--font-size-xs); }
-.text-lg { font-size: var(--font-size-lg); font-weight: 700; }
-.text-xl { font-size: var(--font-size-xl); font-weight: 760; letter-spacing: -0.02em; }
-.text-display { font-size: var(--font-size-display); font-weight: 800; letter-spacing: -0.035em; }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.04em; }
+.text-lg { font-size: var(--font-size-lg); font-weight: 720; letter-spacing: -0.01em; }
+.text-xl { font-size: var(--font-size-xl); line-height: 1.16; font-weight: 780; letter-spacing: -0.035em; }
+.text-display { font-size: var(--font-size-display); line-height: 1.05; font-weight: 820; letter-spacing: -0.055em; }
+.mono { font-family: var(--font-mono); letter-spacing: 0.035em; }
+.eyebrow { color: var(--color-primary); font-size: 12px; font-weight: 780; letter-spacing: .16em; text-transform: uppercase; }
