@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
+import { goBackOr } from '@/services/navigation/goBack'
 import { showConfirmDialog, showToast } from 'vant'
 import { generatePassword } from '@/features/credentials'
 import { totpFromManual, totpFromUri } from '@/features/totp'
@@ -190,7 +191,7 @@ function cloneEntry(value: CredentialEntry): CredentialEntry {
   <div class="app-page">
     <div class="page-content stack">
       <header class="page-header sticky-header">
-        <button class="btn-icon page-back" type="button" aria-label="取消并返回" @click="router.back()"><AppIcon name="close" /></button>
+        <button class="btn-icon page-back" type="button" aria-label="取消并返回" @click="goBackOr('/vault')"><AppIcon name="close" /></button>
         <div class="page-header__title"><h1 class="text-xl">{{ isNew ? '新建条目' : '编辑条目' }}</h1><p class="text-muted text-sm">{{ dirty ? '有尚未保存的修改' : '所有字段均在本机加密保存' }}</p></div>
         <button class="btn-primary save-button" type="submit" form="entry-form" :disabled="saving"><AppIcon name="check" :size="18" />{{ saving ? '保存中…' : '保存' }}</button>
       </header>

@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
-import { MASTER_PIN_ERROR, normalizeMasterPinInput, vaultUsesMasterPin } from '@/features/security'
+import PinField from '@/components/ui/PinField.vue'
+import { MASTER_PIN_ERROR, vaultUsesMasterPin } from '@/features/security'
+import { goBackOr } from '@/services/navigation/goBack'
 import { useSessionStore } from '@/stores/session'
 
 const router = useRouter()
@@ -10,22 +12,7 @@ const session = useSessionStore()
 const currentPassword = ref('')
 const nextPassword = ref('')
 const confirmPassword = ref('')
-const showPasswords = ref(false)
 const currentUsesPin = computed(() => vaultUsesMasterPin(session.record))
-
-watch([currentPassword, currentUsesPin], ([value, pinMode]) => {
-  if (!pinMode) return
-  const normalized = normalizeMasterPinInput(value)
-  if (value !== normalized) currentPassword.value = normalized
-})
-watch(nextPassword, (value) => {
-  const normalized = normalizeMasterPinInput(value)
-  if (value !== normalized) nextPassword.value = normalized
-})
-watch(confirmPassword, (value) => {
-  const normalized = normalizeMasterPinInput(value)
-  if (value !== normalized) confirmPassword.value = normalized
-})
 
 async function submit() {
   if (!currentPassword.value) return showToast(currentUsesPin.value ? '请输入当前主 PIN' : '请输入当前主密码')
@@ -50,7 +37,7 @@ async function submit() {
   <div class="app-page">
     <div class="page-content stack">
       <header class="page-header">
-        <button class="btn-icon page-back" type="button" aria-label="返回" @click="router.back()"><AppIcon name="back" /></button>
+        <button class="btn-icon page-back" type="button" aria-label="返回" @click="goBackOr('/settings')"><AppIcon name="back" /></button>
         <div class="page-header__title"><h1 class="text-xl">修改主 PIN</h1><p class="text-muted text-sm">更新进入密语保险箱的 6 位数字凭据</p></div>
       </header>
       <div class="password-layout">
@@ -64,10 +51,10 @@ async function submit() {
         <form class="card password-form stack" @submit.prevent="submit">
           <input type="text" name="username" value="codebook-local-vault" autocomplete="username" hidden />
           <div class="section-heading"><div class="section-heading__copy"><h2 class="section-title">验证并更新</h2><p>请先验证当前凭据，再输入新的 6 位数字主 PIN</p></div><span class="step-badge mono">01 / 01</span></div>
-          <label><span class="field-label">{{ currentUsesPin ? '当前主 PIN' : '当前主密码' }}</span><span class="field-with-icon"><AppIcon name="lock" :size="18" /><input v-model="currentPassword" class="input" :class="{ mono: currentUsesPin }" :type="showPasswords ? 'text' : 'password'" :inputmode="currentUsesPin ? 'numeric' : 'text'" :pattern="currentUsesPin ? '[0-9]*' : undefined" autocomplete="current-password" placeholder="用于确认你的身份" /><button type="button" :aria-label="showPasswords ? '隐藏当前凭据' : '显示当前凭据'" @click="showPasswords = !showPasswords"><AppIcon :name="showPasswords ? 'eyeOff' : 'eye'" :size="18" /></button></span></label>
+          <PinField v-model="currentPassword" :label="currentUsesPin ? '当前主 PIN' : '当前主密码'" placeholder="用于确认你的身份" :pin="currentUsesPin" icon="lock" autocomplete="current-password" />
           <div class="divider" />
-          <label><span class="field-label">新主 PIN</span><span class="field-with-icon"><AppIcon name="key" :size="18" /><input v-model="nextPassword" class="input mono" :type="showPasswords ? 'text' : 'password'" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" placeholder="输入 6 位数字" /><button type="button" :aria-label="showPasswords ? '隐藏新主 PIN' : '显示新主 PIN'" @click="showPasswords = !showPasswords"><AppIcon :name="showPasswords ? 'eyeOff' : 'eye'" :size="18" /></button></span></label>
-          <label><span class="field-label">确认新主 PIN</span><span class="field-with-icon"><AppIcon name="check" :size="18" /><input v-model="confirmPassword" class="input mono" :type="showPasswords ? 'text' : 'password'" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" placeholder="再次输入 6 位数字" @keyup.enter="submit" /><button type="button" :aria-label="showPasswords ? '隐藏确认 PIN' : '显示确认 PIN'" @click="showPasswords = !showPasswords"><AppIcon :name="showPasswords ? 'eyeOff' : 'eye'" :size="18" /></button></span></label>
+          <PinField v-model="nextPassword" label="新主 PIN" placeholder="输入 6 位数字" icon="key" autocomplete="new-password" />
+          <PinField v-model="confirmPassword" label="确认新主 PIN" placeholder="再次输入 6 位数字" icon="check" autocomplete="new-password" @enter="submit" />
           <div class="notice-panel notice-panel--warning"><AppIcon name="info" :size="20" /><span class="text-sm"><strong>旧备份不会自动更新</strong><br>现有加密备份仍使用导出时的原主 PIN 或旧主密码，请妥善保管或重新导出。</span></div>
           <button class="btn-primary submit-button" type="submit" :disabled="session.busy"><AppIcon name="shield" :size="18" />{{ session.busy ? '正在修改…' : '确认修改' }}</button>
         </form>
@@ -82,7 +69,7 @@ async function submit() {
 .password-story::after { content: '密'; position: absolute; right: -30px; bottom: -72px; color: var(--color-primary); font-size: 230px; font-weight: 900; line-height: 1; opacity: .035; }
 .password-story__mark { width: 68px; height: 68px; display: grid; place-items: center; margin-bottom: 30px; border-radius: 22px; background: var(--color-primary-soft); color: var(--color-primary); }
 .eyebrow { color: var(--color-primary); font-size: 12px; font-weight: 800; letter-spacing: .15em; }.password-story h2 { margin: 12px 0 16px; font-size: clamp(25px, 3vw, 34px); line-height: 1.25; letter-spacing: -.035em; }.password-story > p { color: var(--color-text-secondary); font-size: 13px; line-height: 1.75; }.story-points { display: grid; gap: 10px; margin-top: 28px; }.story-points span { display: flex; align-items: center; gap: 9px; color: var(--color-text-secondary); font-size: 12px; }.story-points .app-icon { color: var(--color-success); }
-.password-form { justify-content: center; padding: 34px; }.step-badge { color: var(--color-text-muted); font-size: 12px; }.field-with-icon { position: relative; display: block; }.field-with-icon > .app-icon { position: absolute; z-index: 1; left: 14px; top: 50%; transform: translateY(-50%); color: var(--color-text-muted); }.field-with-icon .input { padding-left: 43px; padding-right: 50px; }.field-with-icon button { position: absolute; right: 3px; top: 3px; width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: transparent; color: var(--color-text-muted); cursor: pointer; }.submit-button { width: 100%; margin-top: 4px; }
+.password-form { justify-content: center; padding: 34px; }.step-badge { color: var(--color-text-muted); font-size: 12px; }.submit-button { width: 100%; margin-top: 4px; }
 @media (max-width: 780px) { .password-layout { grid-template-columns: 1fr; } .password-story { min-height: auto; padding: 26px; }.password-story__mark { margin-bottom: 20px; } }
 @media (max-width: 520px) { .password-story { padding: 22px; border-radius: 22px; }.password-form { padding: 20px; } }
 </style>

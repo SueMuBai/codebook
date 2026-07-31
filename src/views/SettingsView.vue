@@ -2,10 +2,12 @@
 import { Capacitor } from '@capacitor/core'
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { showConfirmDialog, showToast } from 'vant'
+import { showToast } from 'vant'
 import { APP_NAME, APP_VERSION } from '@/app/version'
+import { confirmDanger } from '@/services/ui/dialogs'
 import { useSessionStore } from '@/stores/session'
 import { useSettingsStore } from '@/stores/settings'
+import { extractErrorCode } from '@/utils/errorCode'
 import type { ThemeMode } from '@/types/domain'
 
 const router = useRouter()
@@ -47,16 +49,12 @@ async function setTheme(event: Event) {
 async function toggleScreenProtection() {
   const next = !settingsStore.settings.screenProtectionEnabled
   if (!next) {
-    try {
-      await showConfirmDialog({
-        title: '关闭屏幕保护？',
-        message: '关闭后允许截屏，并可能在最近任务中显示敏感内容。',
-        confirmButtonText: '仍要关闭',
-        confirmButtonColor: '#e11d48',
-      })
-    } catch {
-      return
-    }
+    const confirmed = await confirmDanger({
+      title: '关闭屏幕保护？',
+      message: '关闭后允许截屏，并可能在最近任务中显示敏感内容。',
+      confirmText: '仍要关闭',
+    })
+    if (!confirmed) return
   }
   try {
     await settingsStore.update({ screenProtectionEnabled: next })
@@ -80,10 +78,8 @@ async function toggleBiometricUnlock() {
     await session.setBiometricUnlockEnabled(next)
     showToast(next ? '指纹或人脸解锁已开启' : '生物识别解锁已关闭')
   } catch (error) {
-    const code = error && typeof error === 'object' && 'code' in error
-      ? String((error as { code?: unknown }).code ?? '')
-      : ''
-    if (code !== 'CANCELLED') showToast(error instanceof Error ? error.message : '设置失败')
+    if (extractErrorCode(error) !== 'CANCELLED')
+      showToast(error instanceof Error ? error.message : '设置失败')
   }
 }
 
@@ -93,18 +89,14 @@ function lockNow() {
 }
 
 async function clearAll() {
-  try {
-    await showConfirmDialog({
-      title: '清空所有本地数据',
-      message: '保险箱、设置和密钥都会被删除。此操作无法撤销，请先导出加密备份。',
-      confirmButtonText: '永久清空',
-      confirmButtonColor: '#e11d48',
-    })
-    await session.resetLocalData()
-    await router.replace('/onboarding')
-  } catch {
-    // cancelled
-  }
+  const confirmed = await confirmDanger({
+    title: '清空所有本地数据',
+    message: '保险箱、设置和密钥都会被删除。此操作无法撤销，请先导出加密备份。',
+    confirmText: '永久清空',
+  })
+  if (!confirmed) return
+  await session.resetLocalData()
+  await router.replace('/onboarding')
 }
 </script>
 

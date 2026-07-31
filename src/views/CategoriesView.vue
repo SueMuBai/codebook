@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { showConfirmDialog, showToast } from 'vant'
+import { showToast } from 'vant'
+import { goBackOr } from '@/services/navigation/goBack'
+import { confirmDanger } from '@/services/ui/dialogs'
 import { useVaultStore } from '@/stores/vault'
 
-const router = useRouter()
 const vault = useVaultStore()
 const name = ref('')
 const color = ref('#2dd4bf')
 const editingId = ref<string | null>(null)
+const saving = ref(false)
 
 function beginEdit(id: string) {
   const category = vault.getCategory(id)
@@ -25,28 +26,28 @@ function clearForm() {
 }
 
 async function save() {
+  if (saving.value) return
+  saving.value = true
   try {
     await vault.upsertCategory({ id: editingId.value ?? undefined, name: name.value, color: color.value })
     showToast(editingId.value ? '分类已更新' : '分类已创建')
     clearForm()
   } catch (error) {
     showToast(error instanceof Error ? error.message : '保存失败')
+  } finally {
+    saving.value = false
   }
 }
 
 async function remove(id: string, nameValue: string) {
-  try {
-    await showConfirmDialog({
-      title: `删除“${nameValue}”`,
-      message: '分类下的条目不会被删除，将变为未分类。',
-      confirmButtonText: '删除分类',
-      confirmButtonColor: '#e11d48',
-    })
-    await vault.deleteCategory(id)
-    if (editingId.value === id) clearForm()
-  } catch {
-    // cancelled
-  }
+  const confirmed = await confirmDanger({
+    title: `删除“${nameValue}”`,
+    message: '分类下的条目不会被删除，将变为未分类。',
+    confirmText: '删除分类',
+  })
+  if (!confirmed) return
+  await vault.deleteCategory(id)
+  if (editingId.value === id) clearForm()
 }
 
 async function move(id: string, direction: -1 | 1) {
@@ -63,7 +64,7 @@ async function move(id: string, direction: -1 | 1) {
   <div class="app-page">
     <div class="page-content stack">
       <header class="page-header">
-        <button class="btn-icon page-back" type="button" aria-label="返回" @click="router.back()"><AppIcon name="back" /></button>
+        <button class="btn-icon page-back" type="button" aria-label="返回" @click="goBackOr('/settings')"><AppIcon name="back" /></button>
         <div class="page-header__title">
           <h1 class="text-xl">分类管理</h1>
           <p class="text-muted text-sm">用颜色和顺序建立清晰的保险箱索引</p>
@@ -79,7 +80,7 @@ async function move(id: string, direction: -1 | 1) {
           <div class="section-heading"><div class="section-heading__copy"><h2 class="section-title">{{ editingId ? '编辑分类' : '新建分类' }}</h2><p>{{ editingId ? '修改后立即同步到所有关联条目' : '创建一个新的保险箱索引' }}</p></div></div>
           <label><span class="field-label">名称</span><input v-model="name" class="input" maxlength="40" placeholder="例如：工作、社交、邮箱" /></label>
           <label><span class="field-label">标识颜色</span><span class="color-picker"><input v-model="color" class="color-input" type="color" /><span class="mono text-sm">{{ color.toUpperCase() }}</span></span></label>
-          <div class="editor-actions"><button class="btn-primary" type="button" @click="save"><AppIcon name="check" :size="18" />{{ editingId ? '保存修改' : '创建分类' }}</button><button v-if="editingId" class="btn-ghost" type="button" @click="clearForm">取消编辑</button></div>
+          <div class="editor-actions"><button class="btn-primary" type="button" :disabled="saving" @click="save"><AppIcon name="check" :size="18" />{{ saving ? '保存中…' : editingId ? '保存修改' : '创建分类' }}</button><button v-if="editingId" class="btn-ghost" type="button" @click="clearForm">取消编辑</button></div>
           <div class="notice-panel"><AppIcon name="info" :size="18" /><span class="text-sm">删除分类不会删除其中的条目，它们会自动变为“未分类”。</span></div>
         </section>
 

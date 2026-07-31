@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { goBackOr } from '@/services/navigation/goBack'
 import { showConfirmDialog, showToast } from 'vant'
 import {
   buildEncryptedPackage,
@@ -171,7 +172,7 @@ async function importCsv() {
   <div class="app-page">
     <div class="page-content stack">
       <header class="page-header">
-        <button class="btn-icon page-back" type="button" aria-label="返回" @click="router.back()"><AppIcon name="back" /></button>
+        <button class="btn-icon page-back" type="button" aria-label="返回" @click="goBackOr('/settings')"><AppIcon name="back" /></button>
         <div class="page-header__title"><h1 class="text-xl">导入与导出</h1><p class="text-muted text-sm">备份完整保险箱，或在受控环境中迁移数据</p></div>
       </header>
 

@@ -37,6 +37,7 @@ import type {
 } from '@/types/domain'
 import { DEFAULT_APP_SETTINGS } from '@/types/domain'
 import { clearSensitiveClipboard } from '@/utils/clipboard'
+import { extractErrorCode } from '@/utils/errorCode'
 
 export type SessionStatus =
   | 'booting'
@@ -176,11 +177,8 @@ export const useSessionStore = defineStore('session', () => {
       touchActivity()
       await setScreenProtection(settings.value.screenProtectionEnabled)
     } catch (error) {
-      const code =
-        error && typeof error === 'object' && 'code' in error
-          ? String((error as { code?: unknown }).code ?? '')
-          : ''
-      errorMessage.value = code === 'CANCELLED' ? null : '生物识别解锁失败，请使用 PIN 解锁'
+      errorMessage.value =
+        extractErrorCode(error) === 'CANCELLED' ? null : '生物识别解锁失败，请使用 PIN 解锁'
       await refreshBiometricStatus()
       throw error
     } finally {

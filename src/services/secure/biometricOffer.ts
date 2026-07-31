@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core'
 import { Preferences } from '@capacitor/preferences'
 import { showConfirmDialog } from 'vant'
 import type { BiometricStatus } from '@/services/secure/biometric'
+import { extractErrorCode } from '@/utils/errorCode'
 
 const OFFER_DISMISSED_KEY = 'codebook.biometric.offerDismissed'
 
@@ -52,10 +53,6 @@ export async function offerBiometricSetupIfNeeded(
     await session.setBiometricUnlockEnabled(true)
     return 'enabled'
   } catch (error) {
-    const code =
-      error && typeof error === 'object' && 'code' in error
-        ? String((error as { code?: unknown }).code ?? '')
-        : ''
-    return code === 'CANCELLED' ? 'skipped' : 'failed'
+    return extractErrorCode(error) === 'CANCELLED' ? 'skipped' : 'failed'
   }
 }

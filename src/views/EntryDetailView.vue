@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { goBackOr } from '@/services/navigation/goBack'
 import { showConfirmDialog, showToast } from 'vant'
 import { generateTotp } from '@/features/totp'
 import { openExternalUrl } from '@/services/platform/openUrl'
@@ -154,7 +155,7 @@ watch(
   <div class="app-page">
     <div class="page-content stack">
       <header class="page-header">
-        <button class="btn-icon page-back" type="button" aria-label="返回" @click="router.back()"><AppIcon name="back" /></button>
+        <button class="btn-icon page-back" type="button" aria-label="返回" @click="goBackOr('/vault')"><AppIcon name="back" /></button>
         <button v-if="entry" class="btn-primary" type="button" @click="router.push(`/vault/${id}/edit`)"><AppIcon name="edit" :size="18" />编辑条目</button>
       </header>
 

@@ -1,17 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { showConfirmDialog, showToast } from 'vant'
+import { showToast } from 'vant'
 import { APP_NAME } from '@/app/version'
-import { MASTER_PIN_ERROR, normalizeMasterPinInput, vaultUsesMasterPin } from '@/features/security'
+import PinField from '@/components/ui/PinField.vue'
+import { MASTER_PIN_ERROR, vaultUsesMasterPin } from '@/features/security'
+import { confirmDanger } from '@/services/ui/dialogs'
 import { offerBiometricSetupIfNeeded } from '@/services/secure/biometricOffer'
 import { useSessionStore } from '@/stores/session'
+import { extractErrorCode } from '@/utils/errorCode'
 
 const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
 const password = ref('')
-const showPassword = ref(false)
 const biometricAttempted = ref(false)
 const usesPin = computed(() => vaultUsesMasterPin(session.record))
 const canUseBiometrics = computed(
@@ -21,22 +23,10 @@ const canUseBiometrics = computed(
     session.biometricStatus.enabled,
 )
 
-watch([password, usesPin], ([value, pinMode]) => {
-  if (!pinMode) return
-  const normalized = normalizeMasterPinInput(value)
-  if (value !== normalized) password.value = normalized
-})
-
 onMounted(async () => {
   if (session.status === 'booting') await session.bootstrap()
   if (canUseBiometrics.value) await unlockWithBiometrics(true)
 })
-
-function biometricErrorCode(error: unknown): string {
-  return error && typeof error === 'object' && 'code' in error
-    ? String((error as { code?: unknown }).code ?? '')
-    : ''
-}
 
 async function finishUnlock() {
   const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/vault'
@@ -53,7 +43,7 @@ async function unlockWithBiometrics(automatic = false) {
     await session.unlockWithBiometrics()
     await finishUnlock()
   } catch (error) {
-    if (biometricErrorCode(error) !== 'CANCELLED') {
+    if (extractErrorCode(error) !== 'CANCELLED') {
       showToast(session.errorMessage || '生物识别解锁失败，请使用 PIN')
     }
   }
@@ -75,18 +65,14 @@ async function unlock() {
 }
 
 async function resetLegacy() {
-  try {
-    await showConfirmDialog({
-      title: '清空旧版开发数据',
-      message: '旧版 v1 数据与正式 v2 格式不兼容。清空后无法恢复。',
-      confirmButtonText: '清空并重新创建',
-      confirmButtonColor: '#e11d48',
-    })
-    await session.resetLocalData()
-    await router.replace('/onboarding')
-  } catch {
-    // cancelled
-  }
+  const confirmed = await confirmDanger({
+    title: '清空旧版开发数据',
+    message: '旧版 v1 数据与正式 v2 格式不兼容。清空后无法恢复。',
+    confirmText: '清空并重新创建',
+  })
+  if (!confirmed) return
+  await session.resetLocalData()
+  await router.replace('/onboarding')
 }
 
 async function retryBootstrap() {
@@ -110,10 +96,16 @@ async function retryBootstrap() {
         <template v-if="session.status === 'locked' || session.status === 'booting'">
           <button v-if="canUseBiometrics" class="btn-primary biometric-button" type="button" :disabled="session.busy" @click="unlockWithBiometrics()"><AppIcon name="fingerprint" :size="21" />{{ session.busy ? '正在验证…' : '使用指纹或人脸解锁' }}</button>
           <div v-if="canUseBiometrics" class="unlock-divider"><span>{{ usesPin ? '或使用主 PIN' : '或使用原主密码' }}</span></div>
-          <label>
-            <span class="field-label">{{ usesPin ? '主 PIN' : '原主密码' }}</span>
-            <div class="password-field"><AppIcon name="key" :size="18" /><input v-model="password" class="input" :class="{ mono: usesPin }" :type="showPassword ? 'text' : 'password'" :inputmode="usesPin ? 'numeric' : 'text'" :pattern="usesPin ? '[0-9]*' : undefined" autocomplete="current-password" :placeholder="usesPin ? '输入 6 位数字' : '输入原主密码'" :disabled="session.busy" @keyup.enter="unlock" /><button type="button" :aria-label="showPassword ? '隐藏解锁凭据' : '显示解锁凭据'" @click="showPassword = !showPassword"><AppIcon :name="showPassword ? 'eyeOff' : 'eye'" :size="18" /></button></div>
-          </label>
+          <PinField
+            v-model="password"
+            :label="usesPin ? '主 PIN' : '原主密码'"
+            :placeholder="usesPin ? '输入 6 位数字' : '输入原主密码'"
+            :pin="usesPin"
+            icon="key"
+            autocomplete="current-password"
+            :disabled="session.busy"
+            @enter="unlock"
+          />
           <p v-if="session.errorMessage" class="inline-error"><AppIcon name="info" :size="17" />{{ session.errorMessage }}</p>
           <button class="btn-primary unlock-button" type="submit" :disabled="session.busy"><AppIcon name="lock" :size="18" />{{ session.busy ? '正在解锁…' : '解锁保险箱' }}</button>
         </template>
@@ -148,7 +140,6 @@ async function retryBootstrap() {
 .lock-panel__heading { display: flex; align-items: center; gap: 13px; }
 .lock-panel__heading > span { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 14px; background: var(--color-primary-soft); color: var(--color-primary); }
 .lock-panel__heading h2 { font-size: 23px; letter-spacing: -.03em; }.lock-panel__heading p { margin-top: 3px; color: var(--color-text-muted); font-size: 12px; }
-.password-field { position: relative; }.password-field > .app-icon { position: absolute; z-index: 1; left: 14px; top: 50%; transform: translateY(-50%); color: var(--color-text-muted); }.password-field .input { padding-left: 43px; padding-right: 50px; }.password-field button { position: absolute; right: 3px; top: 3px; width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: transparent; color: var(--color-text-muted); cursor: pointer; }
 .inline-error { display: flex; align-items: center; gap: 7px; margin-top: -8px; color: var(--color-danger); font-size: 12px; }
 .unlock-button { width: 100%; }
 .biometric-button { width: 100%; min-height: 52px; }

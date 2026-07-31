@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { APP_NAME } from '@/app/version'
-import { MASTER_PIN_ERROR, normalizeMasterPinInput } from '@/features/security'
+import PinField from '@/components/ui/PinField.vue'
+import { MASTER_PIN_ERROR } from '@/features/security'
 import { offerBiometricSetupIfNeeded } from '@/services/secure/biometricOffer'
 import { useSessionStore } from '@/stores/session'
 
@@ -11,18 +12,8 @@ const router = useRouter()
 const session = useSessionStore()
 const password = ref('')
 const confirmPassword = ref('')
-const showPasswords = ref(false)
 
 const pinProgress = computed(() => password.value.length)
-
-watch(password, (value) => {
-  const normalized = normalizeMasterPinInput(value)
-  if (value !== normalized) password.value = normalized
-})
-watch(confirmPassword, (value) => {
-  const normalized = normalizeMasterPinInput(value)
-  if (value !== normalized) confirmPassword.value = normalized
-})
 
 async function createVault() {
   if (password.value.length !== 6) return showToast(MASTER_PIN_ERROR)
@@ -65,18 +56,12 @@ async function createVault() {
           <div><p class="eyebrow">SET UP</p><h2>创建保险箱</h2><p>设置 6 位数字主 PIN，开始保存你的登录信息。</p></div>
         </div>
 
-        <label>
-          <span class="field-label">6 位数字主 PIN</span>
-          <span class="password-control"><input v-model="password" class="input mono" :type="showPasswords ? 'text' : 'password'" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" placeholder="输入 6 位数字" /><button type="button" :aria-label="showPasswords ? '隐藏主 PIN' : '显示主 PIN'" @click="showPasswords = !showPasswords"><AppIcon :name="showPasswords ? 'eyeOff' : 'eye'" :size="18" /></button></span>
-        </label>
+        <PinField v-model="password" label="6 位数字主 PIN" placeholder="输入 6 位数字" autocomplete="new-password" />
         <div class="strength-block" aria-live="polite">
           <div class="strength-track"><span :style="{ width: `${pinProgress / 6 * 100}%` }" /></div>
           <div class="split text-sm"><span class="text-muted">输入进度</span><strong :class="pinProgress === 6 ? 'success-text' : 'warning-text'">{{ pinProgress }} / 6</strong></div>
         </div>
-        <label>
-          <span class="field-label">确认主 PIN</span>
-          <span class="password-control"><input v-model="confirmPassword" class="input mono" :type="showPasswords ? 'text' : 'password'" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" placeholder="再次输入 6 位数字" @keyup.enter="createVault" /><button type="button" :aria-label="showPasswords ? '隐藏确认 PIN' : '显示确认 PIN'" @click="showPasswords = !showPasswords"><AppIcon :name="showPasswords ? 'eyeOff' : 'eye'" :size="18" /></button></span>
-        </label>
+        <PinField v-model="confirmPassword" label="确认主 PIN" placeholder="再次输入 6 位数字" autocomplete="new-password" @enter="createVault" />
 
         <div class="notice-panel notice-panel--warning text-sm"><AppIcon name="info" :size="18" /><span>主 PIN 不会上传，也无法找回。遗忘后只能清空本地数据重新创建。</span></div>
         <button class="btn-primary auth-submit" type="submit" :disabled="session.busy"><AppIcon name="lock" :size="18" />{{ session.busy ? '正在创建…' : '创建本地保险箱' }}</button>
@@ -108,7 +93,6 @@ async function createVault() {
 .strength-block { display: grid; gap: 7px; margin-top: -8px; }
 .strength-track { height: 5px; overflow: hidden; border-radius: 99px; background: var(--color-bg-subtle); }
 .strength-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--color-warning), var(--color-success)); transition: width var(--transition-base); }
-.password-control { position: relative; display: block; }.password-control .input { padding-right: 50px; }.password-control button { position: absolute; right: 3px; top: 3px; width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: transparent; color: var(--color-text-muted); cursor: pointer; }
 .auth-submit { width: 100%; }
 @media (min-width: 820px) { .auth-layout { grid-template-columns: 1.08fr .92fr; align-items: center; } .feature-list { grid-template-columns: repeat(3, 1fr); } .feature-list li { align-items: flex-start; flex-direction: column; } .auth-panel { padding: 30px; } }
 @media (max-width: 819px) { .auth-story__copy h1 br { display: none; } .feature-list { display: none; } }
