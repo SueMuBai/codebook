@@ -1,0 +1,106 @@
+name: Build Packages
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: build-packages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Test and package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint -- --max-warnings=0
+
+      - name: Unit tests
+        run: npm test -- --run
+
+      - name: Build web application
+        run: npm run build
+
+      - name: Sync Android project
+        run: npx cap sync android
+
+      - name: Build Android APK
+        run: |
+          chmod +x android/gradlew
+          ./android/gradlew -p android --no-daemon testDebugUnitTest assembleDebug
+
+      - name: Prepare downloadable packages
+        shell: bash
+        run: |
+          package_version="$(node -p "require('./package.json').version")"
+          short_sha="${GITHUB_SHA::7}"
+          mkdir -p release-assets
+          cp android/app/build/outputs/apk/debug/app-debug.apk "release-assets/codebook-${package_version}-${short_sha}-debug.apk"
+          cd dist
+          zip -qr "../release-assets/codebook-${package_version}-${short_sha}-web.zip" .
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: codebook-packages-${{ github.sha }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish tagged release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: codebook-packages-${{ github.sha }}
+          path: release-assets
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release-assets/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release-assets/* --generate-notes --title "密语 $GITHUB_REF_NAME"
+          fi

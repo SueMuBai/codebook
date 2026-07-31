@@ -1,0 +1,9 @@
+h1, h2, h3, h4, p { margin: 0; }
+.text-muted { color: var(--color-text-muted); }
+.text-secondary { color: var(--color-text-secondary); }
+.text-sm { font-size: var(--font-size-sm); }
+.text-xs { font-size: var(--font-size-xs); }
+.text-lg { font-size: var(--font-size-lg); font-weight: 700; }
+.text-xl { font-size: var(--font-size-xl); font-weight: 760; letter-spacing: -0.02em; }
+.text-display { font-size: var(--font-size-display); font-weight: 800; letter-spacing: -0.035em; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.04em; }

@@ -1,0 +1,14 @@
+@import './tokens.css';
+@import './reset.css';
+@import './typography.css';
+@import './layout.css';
+@import './vant-theme.css';
+
+/* @capacitor-mlkit/barcode-scanning continuous camera mode */
+body.barcode-scanner-active {
+  visibility: hidden;
+  background: transparent !important;
+}
+body.barcode-scanner-active .scan-shell {
+  visibility: visible;
+}
