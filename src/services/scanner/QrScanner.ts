@@ -169,7 +169,8 @@ export function createNativeScanner(): QrScanner {
         listener = null
       }
       await BarcodeScanner.stopScan()
-      document.querySelector('body')?.classList.remove('barcode-scanner-active')
+      document.documentElement.classList.remove('barcode-scanner-active')
+      document.body.classList.remove('barcode-scanner-active')
     } catch {
       /* ignore */
     }
@@ -234,7 +235,8 @@ export function createNativeScanner(): QrScanner {
               }
             }
 
-            document.querySelector('body')?.classList.add('barcode-scanner-active')
+            document.documentElement.classList.add('barcode-scanner-active')
+            document.body.classList.add('barcode-scanner-active')
             listener = await BarcodeScanner.addListener(
               'barcodesScanned',
               async (event) => {

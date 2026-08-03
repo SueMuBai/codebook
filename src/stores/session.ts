@@ -179,8 +179,17 @@ export const useSessionStore = defineStore('session', () => {
       touchActivity()
       await setScreenProtection(settings.value.screenProtectionEnabled)
     } catch (error) {
+      const code = extractErrorCode(error)
       errorMessage.value =
-        extractErrorCode(error) === 'CANCELLED' ? null : '生物识别解锁失败，请使用 PIN 解锁'
+        code === 'CANCELLED'
+          ? null
+          : code === 'KEY_INVALIDATED'
+            ? '系统指纹或人脸信息已变化，请用 PIN 解锁后重新启用生物识别'
+            : code === 'LOCKED_OUT'
+              ? '生物识别尝试次数过多，已被系统暂时锁定，请稍后再试或使用 PIN'
+              : error instanceof Error && error.message
+                ? error.message
+                : '生物识别解锁失败，请使用 PIN 解锁'
       await refreshBiometricStatus()
       throw error
     } finally {

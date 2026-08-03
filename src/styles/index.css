@@ -4,10 +4,16 @@
 @import './layout.css';
 @import './vant-theme.css';
 
-/* @capacitor-mlkit/barcode-scanning continuous camera mode */
+/* @capacitor-mlkit/barcode-scanning continuous camera mode:
+   the camera preview renders behind the WebView, so html/body must not paint
+   any background or the preview is covered (html's --color-bg looked like a
+   white screen). */
+html.barcode-scanner-active,
+html.barcode-scanner-active body {
+  background: transparent !important;
+}
 body.barcode-scanner-active {
   visibility: hidden;
-  background: transparent !important;
 }
 body.barcode-scanner-active .scan-shell {
   visibility: visible;
