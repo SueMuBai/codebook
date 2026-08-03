@@ -104,6 +104,10 @@ public class BiometricVaultPlugin extends Plugin {
             cipher.init(Cipher.ENCRYPT_MODE, key);
             cipher.updateAAD(AAD);
             showPrompt(call, cipher, "启用生物识别", "验证指纹或人脸以保护保险箱密钥", authenticatedCipher -> {
+                if (authenticatedCipher == null) {
+                    enableWithTimeoutKey(call, secret, new IllegalStateException("生物识别未返回加密授权"));
+                    return;
+                }
                 try {
                     persistWrap(authenticatedCipher, secret, MODE_CRYPTO);
                     Arrays.fill(secret, (byte) 0);
@@ -193,7 +197,10 @@ public class BiometricVaultPlugin extends Plugin {
             cipher.updateAAD(AAD);
             showPrompt(call, cipher, "解锁保险箱", "使用指纹或人脸继续", authenticatedCipher -> {
                 try {
-                    resolveWithSecret(call, authenticatedCipher, ciphertext);
+                    // A missing CryptoObject means the ROM authorized the
+                    // operation out of band (if at all); try the original cipher
+                    // and let the failure path clear material for re-enrollment.
+                    resolveWithSecret(call, authenticatedCipher != null ? authenticatedCipher : cipher, ciphertext);
                 } catch (Exception error) {
                     rejectUnlockFailure(call, error);
                 } finally {
@@ -291,13 +298,11 @@ public class BiometricVaultPlugin extends Plugin {
                     onSuccess.accept(null);
                     return;
                 }
+                // Some ROMs complete a crypto-bound prompt without returning the
+                // CryptoObject; hand back null so callers can fall back instead
+                // of failing outright.
                 BiometricPrompt.CryptoObject crypto = result.getCryptoObject();
-                if (crypto == null || crypto.getCipher() == null) {
-                    onFailure.run();
-                    call.reject("生物识别未返回加密授权", "AUTH_FAILED");
-                    return;
-                }
-                onSuccess.accept(crypto.getCipher());
+                onSuccess.accept(crypto == null ? null : crypto.getCipher());
             }
 
             @Override
