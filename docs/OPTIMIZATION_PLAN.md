@@ -47,7 +47,7 @@ v1 功能闭环已完成，但存在三类欠账：
 
 | 编号 | 问题 | 方案 |
 |---|---|---|
-| L1 | 编辑页 sticky 头部 `top:-16px` 与 `.app-page` 顶部 padding（20px + safe-top）不匹配，真机停靠时上方漏内容 | 改为 `top: calc(-20px - var(--safe-top))`，并在停靠区补齐背景 |
+| L1 | 编辑页 sticky 头部与页面滚动容器、安全区耦合，真机停靠时可能上方漏内容 | 页面统一改用原生文档滚动；sticky 头部使用 `top: var(--safe-top)`，不再依赖负偏移 |
 | L2 | 二级页大标题（text-xl 28px）+ 副标题在 360px 下与返回按钮基线不齐 | page-header 统一 `align-items: center`，标题行高微调 |
 
 ## 3. 阶段三：UI 细节修复
@@ -63,6 +63,7 @@ v1 功能闭环已完成，但存在三类欠账：
 | U7 | 浅色主题下 vant toast 为"浅底白字"，对比不足 | vant-theme.css 补 `--van-toast-text-color` 并按主题适配 | styles/vant-theme.css |
 | U8 | `--font-family` 首选 Inter 但项目未打包该字体，装了 Inter 的桌面与 Android 渲染不一致 | 移除 Inter，以系统栈（system-ui/PingFang/MiSans/Noto）为准 | styles/tokens.css |
 | U9 | 详情页禁用按钮透明度 .46 与可用态区分不够（与 I1 联动） | I1 隐藏后遗留场景统一 disabled 样式（降饱和+去阴影） | styles/layout.css |
+| U10 | 新建条目“保存”文字与左侧图标作为整体居中，导致文字中心右偏约 13px | 图标绝对定位，文字使用独立 span 按按钮边界居中；移动端保留足够宽度避免“保存中”重叠 | EntryEditView.vue |
 
 ## 4. 执行顺序与提交策略
 

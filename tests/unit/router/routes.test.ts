@@ -19,4 +19,14 @@ describe('application routes', () => {
       expect(names.has(name)).toBe(true)
     }
   })
+
+  it('resets document scrolling on navigation and restores browser history positions', async () => {
+    const scrollBehavior = router.options.scrollBehavior
+    expect(scrollBehavior).toBeTypeOf('function')
+
+    expect(await scrollBehavior?.({} as never, {} as never, null)).toEqual({ top: 0 })
+
+    const savedPosition = { left: 12, top: 34 }
+    expect(await scrollBehavior?.({} as never, {} as never, savedPosition)).toEqual(savedPosition)
+  })
 })
