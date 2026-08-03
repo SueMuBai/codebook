@@ -23,6 +23,7 @@ import java.security.KeyStore;
 import java.util.Arrays;
 import java.util.concurrent.Executor;
 
+import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -82,7 +83,12 @@ public class BiometricVaultPlugin extends Plugin {
         }
 
         try {
-            SecretKey key = getOrCreateKey();
+            // Replacing the wrapped DEK anyway, so never reuse the old key: a key
+            // invalidated by enrollment changes fails only at doFinal on some
+            // devices instead of throwing at cipher.init, which would leave
+            // enable() permanently broken.
+            clearMaterial();
+            SecretKey key = createFreshKey();
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.ENCRYPT_MODE, key);
             cipher.updateAAD(AAD);
@@ -96,15 +102,12 @@ public class BiometricVaultPlugin extends Plugin {
                     Arrays.fill(ciphertext, (byte) 0);
                     call.resolve();
                 } catch (Exception error) {
+                    clearMaterial();
                     call.reject("无法保护保险箱密钥", "ENCRYPT_FAILED", error);
                 } finally {
                     Arrays.fill(secret, (byte) 0);
                 }
             }, () -> Arrays.fill(secret, (byte) 0));
-        } catch (KeyPermanentlyInvalidatedException error) {
-            Arrays.fill(secret, (byte) 0);
-            clearMaterial();
-            call.reject("生物识别信息已变化，请重新启用", "KEY_INVALIDATED", error);
         } catch (Exception error) {
             Arrays.fill(secret, (byte) 0);
             call.reject("无法初始化生物识别密钥", "KEYSTORE_FAILED", error);
@@ -139,7 +142,12 @@ public class BiometricVaultPlugin extends Plugin {
                     call.resolve(response);
                     Arrays.fill(secret, (byte) 0);
                 } catch (Exception error) {
-                    call.reject("无法解封保险箱密钥", "DECRYPT_FAILED", error);
+                    if (isKeyInvalidation(error)) {
+                        clearMaterial();
+                        call.reject("生物识别信息已变化，请使用 PIN 解锁后重新启用", "KEY_INVALIDATED", error);
+                    } else {
+                        call.reject("无法解封保险箱密钥", "DECRYPT_FAILED", error);
+                    }
                 } finally {
                     Arrays.fill(iv, (byte) 0);
                     Arrays.fill(ciphertext, (byte) 0);
@@ -226,10 +234,7 @@ public class BiometricVaultPlugin extends Plugin {
         prompt.authenticate(info, new BiometricPrompt.CryptoObject(cipher));
     }
 
-    private SecretKey getOrCreateKey() throws Exception {
-        SecretKey existing = getKey();
-        if (existing != null) return existing;
-
+    private SecretKey createFreshKey() throws Exception {
         KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE);
         KeyGenParameterSpec.Builder builder = new KeyGenParameterSpec.Builder(
             KEY_ALIAS,
@@ -272,6 +277,21 @@ public class BiometricVaultPlugin extends Plugin {
     private boolean hasWrappedDek() {
         return getContext().getSharedPreferences(PREFS, 0).contains(PREF_IV)
             && getContext().getSharedPreferences(PREFS, 0).contains(PREF_CIPHER);
+    }
+
+    /**
+     * Enrollment-invalidated keys surface as a KeyStoreException-caused crypto
+     * failure at doFinal on some devices instead of throwing
+     * KeyPermanentlyInvalidatedException at cipher.init. A bad GCM tag means the
+     * stored wrap can never decrypt again, so it is equally unrecoverable.
+     */
+    private boolean isKeyInvalidation(Throwable error) {
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof KeyPermanentlyInvalidatedException) return true;
+            if (t instanceof AEADBadTagException) return true;
+            if ("android.security.KeyStoreException".equals(t.getClass().getName())) return true;
+        }
+        return false;
     }
 
     private void clearMaterial() {
